@@ -21,18 +21,23 @@ The project combines Raspberry Pi edge devices, cloud services, databases, dashb
 
 * Raspberry Pi Zero W
 * DS18B20 temperature sensors
+* Python data collection scripts
 
 ### Backend
 
-* PostgreSQL / Supabase
+* PostgreSQL
+* Supabase
 * TBD
 
 ### Frontend
 
-* TBD
+* React
+* Vite
+* JavaScript
 
 ### Operations
 
+* GitHub
 * TBD
 
 ## Architecture
