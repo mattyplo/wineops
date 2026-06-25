@@ -3,10 +3,15 @@ frontend/node_modules/
 frontend/dist/
 frontend/.vite/
 
-# ===== Python (device later) =====
+# ===== Python =====
 __pycache__/
 *.pyc
+*.pyo
+venv/
 .venv/
+
+# Python tooling
+.pytest_cache/
 
 # ===== Logs =====
 *.log
@@ -14,6 +19,10 @@ __pycache__/
 # ===== Env files =====
 .env
 .env.*
+.supabase_env
+
+# VS Code
+.vscode/
 
 # ===== Local content drafts =====
 posts/
