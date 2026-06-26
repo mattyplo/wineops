@@ -3,7 +3,7 @@ import os
 import get_temp
 import time
 from dotenv import load_dotenv
-from datetime import datetime
+from datetime import datetime, timezone
 
 # Load env vars
 load_dotenv(os.path.expanduser("~/.supabase_env"))
@@ -28,7 +28,8 @@ def send_to_supabase(temp_c, sensor_id):
 
     payload = {
         "sensor_id": sensor_id,
-        "temperature_c": temp_c
+        "temperature_c": temp_c,
+        "reading_timestamp": datetime.now(timezone.utc).isoformat()
     }
 
     headers = {
