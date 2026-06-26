@@ -10,13 +10,20 @@ load_dotenv(os.path.expanduser("~/.supabase_env"))
 
 SUPABASE_URL = os.getenv("SUPABASE_URL")
 SUPABASE_KEY = os.getenv("SUPABASE_KEY")
-SENSOR_ID = os.getenv("SENSOR_ID")
+
+def get_sensor_ids():
+    sensors = os.getenv("SENSORS")
+
+    if not sensors:
+        raise Exception("No SENSORS configured in environment")
+
+    return [s.strip() for s in sensors.split(",")]
 
 # --- replace this with your real DS18B20 function ---
-def read_temp():
-    return get_temp.read_temp()
+def read_temp(sensor_id):
+    return get_temp.read_temp(sensor_id)
 
-def send_to_supabase(temp_c, sensor_id=SENSOR_ID):
+def send_to_supabase(temp_c, sensor_id):
     url = f"{SUPABASE_URL}/rest/v1/temperature_readings"
 
     payload = {
@@ -38,16 +45,19 @@ def send_to_supabase(temp_c, sensor_id=SENSOR_ID):
         print(r.text)
 
 def main():
-  while True: 
-    try:
-        temp = read_temp()
-        send_to_supabase(temp)
+    sensors = get_sensor_ids()
 
-    except Exception as e:
-        print("Error:", e)
+    while True: 
+        for sensor_id in sensors:
+            try:
+                temp = read_temp(sensor_id)
+                send_to_supabase(temp, sensor_id)
 
-    # wait 15 minutes
-    time.sleep(15 * 60)
+            except Exception as e:
+                print(f"{sensor_id} failed:", e)
+    
+        # wait 15 minutes
+        time.sleep(15 * 60)
 
 if __name__ == "__main__":
     main()
