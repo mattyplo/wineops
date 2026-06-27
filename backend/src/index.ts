@@ -1,20 +1,34 @@
 import Fastify from "fastify";
+import { supabase } from "./services/supabase";
+import { config } from "./config";
 
 const app = Fastify({
   logger: true
 });
 
 app.get("/health", async () => {
+  const { error } = await supabase
+    .from("temperature_readings")
+    .select("id")
+    .limit(1);
+
   return {
     status: "ok",
-    service: "wineops-backend"
+    database: error ? "error" : "connected"
+  };
+});
+
+app.get("/api", async () => {
+  return {
+    service: "wineops-api",
+    version: "1.0"
   };
 });
 
 const start = async () => {
   try {
     await app.listen({
-      port: 3000,
+      port: config.port,
       host: "0.0.0.0"
     });
   } catch (err) {

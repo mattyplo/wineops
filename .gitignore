@@ -26,6 +26,7 @@ venv/
 # ===== Env files =====
 .env
 .env.*
+!.env.example
 .supabase_env
 
 # ===== Node tooling =====
