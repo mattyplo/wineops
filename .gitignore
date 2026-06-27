@@ -3,6 +3,13 @@ frontend/node_modules/
 frontend/dist/
 frontend/.vite/
 
+# ===== Node (backend) =====
+backend/node_modules/
+backend/dist/
+
+# TypeScript
+backend/*.tsbuildinfo
+
 # ===== Python =====
 __pycache__/
 *.pyc
@@ -21,8 +28,18 @@ venv/
 .env.*
 .supabase_env
 
+# ===== Node tooling =====
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
 # VS Code
 .vscode/
+.idea/
+
+# ===== OS =====
+.DS_Store
+Thumbs.db
 
 # ===== Local content drafts =====
 posts/
