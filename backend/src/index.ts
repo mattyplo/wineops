@@ -1,4 +1,5 @@
 import Fastify from "fastify";
+import cors from "@fastify/cors";
 import { config } from "./config";
 
 import { readingRoutes } from "./routes/readings";
@@ -29,6 +30,10 @@ app.get("/api", async () => {
 
 const start = async () => {
   try {
+    await app.register(cors, {
+      origin: config.frontendUrl,
+    });
+
     await app.register(readingRoutes, {
       prefix: "/api/readings",
     });

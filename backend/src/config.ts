@@ -18,5 +18,6 @@ if (!SUPABASE_URL || !SUPABASE_KEY) {
 export const config = {
   supabaseUrl: SUPABASE_URL,
   supabaseKey: SUPABASE_KEY,
-  port: Number(PORT)
+  port: Number(PORT),
+  frontendUrl: process.env.FRONTEND_URL || "http://localhost:5173",
 };
