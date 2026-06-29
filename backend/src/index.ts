@@ -1,6 +1,8 @@
 import Fastify from "fastify";
-import { supabase } from "./services/supabase";
 import { config } from "./config";
+
+import { readingRoutes } from "./routes/readings";
+import { supabase } from "./services/supabase";
 
 const app = Fastify({
   logger: true
@@ -27,6 +29,10 @@ app.get("/api", async () => {
 
 const start = async () => {
   try {
+    await app.register(readingRoutes, {
+      prefix: "/api/readings",
+    });
+
     await app.listen({
       port: config.port,
       host: "0.0.0.0"
