@@ -1,0 +1,105 @@
+/* ==========================================
+   Sensor Card
+========================================== */
+
+.sensor-card {
+  background: #1b1f27;
+  border: 1px solid #2d333b;
+  border-radius: 14px;
+  padding: 1.25rem;
+  min-width: 280px;
+  max-width: 380px;
+  margin: 1rem;
+
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+
+  transition:
+    transform 0.2s ease,
+    border-color 0.2s ease,
+    box-shadow 0.2s ease;
+}
+
+.sensor-card:hover {
+  transform: translateY(-2px);
+  border-color: #4d8cff;
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.25);
+}
+
+/* ==========================================
+   Card Header
+========================================== */
+
+.sensor-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+}
+
+.sensor-card-header h2 {
+  margin: 0;
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: #e6e6e6;
+}
+
+.sensor-type {
+  margin: 0.35rem 0 0;
+  font-size: 0.9rem;
+  color: #8b949e;
+}
+
+.sensor-status {
+  padding: 0.25rem 0.6rem;
+  border-radius: 999px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.sensor-status.online {
+  background: rgba(76, 175, 80, 0.15);
+  color: #4caf50;
+}
+
+
+/* ==========================================
+   Temperature Reading
+========================================== */
+
+.temperature {
+  text-align: center;
+  font-size: 3rem;
+  font-weight: 700;
+  line-height: 1;
+  color: #ffffff;
+}
+
+/* ==========================================
+   Card Footer
+========================================== */
+
+.sensor-footer {
+  border-top: 1px solid #2d333b;
+  padding-top: 1rem;
+
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.label {
+  display: block;
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #8b949e;
+}
+
+.value {
+  display: block;
+  font-size: 0.95rem;
+  color: #e6e6e6;
+}
