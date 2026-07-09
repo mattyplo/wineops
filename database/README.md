@@ -1,18 +1,28 @@
-# WineOps Database
+# Database
 
-This directory contains the database schema for WineOps.
+The WineOps database schema is managed through SQL migrations.
 
-## Structure
+Currently migrations are applied manually through the Supabase SQL editor.
 
-- `schema.sql` - Table definitions
-- `views.sql` - Database views
-- `policies.sql` - Row Level Security policies
-- `migrations/` - Future Supabase migrations
+## Migration order
 
-## Current Database
+001_add_sensor_models.sql
 
-The production database is hosted in Supabase.
+## Tables
 
-During early development, SQL objects may be created manually in the Supabase SQL Editor and copied into this directory.
+temperature_readings
+- Raw sensor measurements
 
-The long-term goal is to manage all schema changes through version-controlled migrations.
+sensors
+- Physical DS18B20 probes
+
+monitoring_points
+- Real-world things being monitored
+
+sensor_assignments
+- Historical relationship between sensors and monitoring points
+
+## Views
+
+latest_temperature_readings
+- Latest reading per sensor
