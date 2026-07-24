@@ -140,6 +140,26 @@ The reporter will:
 3. Send the reading to Supabase
 4. Wait for the next interval
 
+## Run automatically at startup
+
+WineOps uses a systemd service so temperature reporting starts automatically
+after a Raspberry Pi restart or power loss.
+
+Install the service:
+
+```bash
+sudo cp ../systemd/wineops-reporter.service \
+  /etc/systemd/system/wineops-reporter.service
+
+sudo systemctl daemon-reload
+sudo systemctl enable wineops-reporter.service
+sudo systemctl start wineops-reporter.service
+
+# Check the service:
+systemctl status wineops-reporter.service
+journalctl -u wineops-reporter.service -b
+```
+
 ## Running in Background
 
 To keep the reporter running after disconnecting SSH:
