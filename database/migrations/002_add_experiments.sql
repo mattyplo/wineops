@@ -17,6 +17,8 @@ CREATE TABLE experiments (
 
 
 CREATE TABLE experiment_monitoring_points (
+    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+
     experiment_id uuid NOT NULL
         REFERENCES experiments(id)
         ON DELETE CASCADE,
@@ -24,7 +26,10 @@ CREATE TABLE experiment_monitoring_points (
     monitoring_point_id uuid NOT NULL
         REFERENCES monitoring_points(id),
 
-    PRIMARY KEY (experiment_id, monitoring_point_id)
+    created_at timestamptz NOT NULL DEFAULT now(),
+    updated_at timestamptz NOT NULL DEFAULT now(),
+
+    UNIQUE (experiment_id, monitoring_point_id)
 );
 
 
