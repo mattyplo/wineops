@@ -6,8 +6,10 @@ Currently migrations are applied manually through the Supabase SQL editor.
 
 ## Migration order
 
+``` text
 001_add_sensor_models.sql
 002_add_experiments.sql
+```
 
 ## Tables
 
