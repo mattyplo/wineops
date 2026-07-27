@@ -5,6 +5,8 @@
   "scripts": {
     "dev": "tsx src/index.ts",
     "build": "tsc",
+    "test": "SUPABASE_URL=http://localhost SUPABASE_KEY=test tsx --test test/*.test.ts",
+    "typecheck": "tsc --noEmit",
     "start": "node dist/index.js"
   },
   "keywords": [],

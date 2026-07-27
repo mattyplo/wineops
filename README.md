@@ -120,6 +120,12 @@ Current endpoints:
 GET /health
 
 GET /api/readings/latest
+
+GET /api/experiments
+
+GET /api/experiments/:id
+
+GET /api/experiments/:id/readings
 ```
 
 ## Frontend
