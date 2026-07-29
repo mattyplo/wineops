@@ -1,4 +1,4 @@
-import { supabase } from "../services/supabase";
+import { supabase } from "../clients/supabase";
 import {
   ExperimentEvent,
   ExperimentRecord,

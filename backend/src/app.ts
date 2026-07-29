@@ -7,7 +7,7 @@ import {
 } from "./routes/experiments";
 import { readingRoutes } from "./routes/readings";
 import { ExperimentService } from "./services/experiments";
-import { supabase } from "./services/supabase";
+import { supabase } from "./clients/supabase";
 
 interface BuildAppOptions {
   experimentService?: ExperimentService;
