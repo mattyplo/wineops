@@ -39,6 +39,27 @@ function dataOrThrow<T>(data: T | null, error: { message: string } | null): T {
   return data;
 }
 
+const temperatureReadingPageSize = 1000;
+
+export async function collectTemperatureReadingPages(
+  fetchPage: (from: number, to: number) => Promise<TemperatureReading[]>,
+): Promise<TemperatureReading[]> {
+  const readings: TemperatureReading[] = [];
+
+  while (true) {
+    const from = readings.length;
+    const page = await fetchPage(
+      from,
+      from + temperatureReadingPageSize - 1,
+    );
+    readings.push(...page);
+
+    if (page.length < temperatureReadingPageSize) {
+      return readings;
+    }
+  }
+}
+
 export function resolveSensorAssignments(
   assignments: SensorAssignment[],
   sensors: SensorRecord[],
@@ -161,14 +182,19 @@ export const experimentRepository: ExperimentRepository = {
       return [];
     }
 
-    const { data, error } = await supabase
-      .from("temperature_readings")
-      .select("sensor_id,temperature_c,recorded_at")
-      .in("sensor_id", hardwareIds)
-      .gte("recorded_at", windowStart)
-      .lte("recorded_at", windowEnd)
-      .order("recorded_at", { ascending: true });
+    return collectTemperatureReadingPages(async (from, to) => {
+      const { data, error } = await supabase
+        .from("temperature_readings")
+        .select("sensor_id,temperature_c,recorded_at")
+        .in("sensor_id", hardwareIds)
+        .gte("recorded_at", windowStart)
+        .lte("recorded_at", windowEnd)
+        .order("recorded_at", { ascending: true })
+        .order("sensor_id", { ascending: true })
+        .order("id", { ascending: true })
+        .range(from, to);
 
-    return dataOrThrow(data, error) as TemperatureReading[];
+      return dataOrThrow(data, error) as TemperatureReading[];
+    });
   },
 };

@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import {
+  collectTemperatureReadingPages,
   ExperimentRepository,
   resolveSensorAssignments,
 } from "../src/repositories/experiments";
@@ -104,6 +105,28 @@ describe("sensor assignment resolution", () => {
         ),
       /Unable to resolve sensor assignment UUID missing-sensor-uuid/,
     );
+  });
+});
+
+describe("temperature reading pagination", () => {
+  it("fetches subsequent pages until a page contains fewer than 1000 rows", async () => {
+    const pageRequests: Array<[number, number]> = [];
+    const reading = {
+      sensor_id: "28-00000021a7d3",
+      temperature_c: 21,
+      recorded_at: "2026-07-21T06:00:00.000Z",
+    };
+
+    const result = await collectTemperatureReadingPages(async (from, to) => {
+      pageRequests.push([from, to]);
+      return from === 0 ? Array(1000).fill(reading) : [reading];
+    });
+
+    assert.equal(result.length, 1001);
+    assert.deepEqual(pageRequests, [
+      [0, 999],
+      [1000, 1999],
+    ]);
   });
 });
 
