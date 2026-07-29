@@ -15,8 +15,10 @@ vi.mock("recharts", () => ({
   Line: ({ name, stroke }: { name: string; stroke: string }) => (
     <span data-testid="chart-line" data-color={stroke}>{name}</span>
   ),
-  ReferenceLine: ({ x }: { x: number }) => (
-    <span data-testid="event-marker">{x}</span>
+  ReferenceLine: ({ x, label }: { x: number; label: { value: number } }) => (
+    <span data-testid="event-marker" data-timestamp={x}>
+      {label.value}
+    </span>
   ),
 }));
 
@@ -103,6 +105,39 @@ describe("experiment route", () => {
     expect(screen.getByTestId("event-marker")).toBeInTheDocument();
     expect(screen.getByText("Added one scoop of ice to the bath.")).toBeInTheDocument();
     expect(screen.getByTestId("empty-series")).toHaveTextContent("Ambient Air");
+  });
+
+  it("numbers chart markers in the same chronological order as the timeline", async () => {
+    const earlierEvent = {
+      id: "event-earlier",
+      event_type: "experiment_started",
+      description: "Started the experiment.",
+      occurred_at: "2026-07-21T06:10:00.000Z",
+    };
+    const laterEvent = {
+      id: "event-later",
+      event_type: "ice_added",
+      description: "Added ice after the first reading.",
+      occurred_at: "2026-07-21T06:40:00.000Z",
+    };
+    mockRequests({ ...experiment, events: [laterEvent, earlierEvent] });
+    render(<App />);
+
+    const markers = await screen.findAllByTestId("event-marker");
+    const timelineEvents = screen.getAllByTestId("timeline-event");
+
+    expect(markers[0]).toHaveTextContent("1");
+    expect(markers[0]).toHaveAttribute(
+      "data-timestamp",
+      String(Date.parse(earlierEvent.occurred_at)),
+    );
+    expect(markers[1]).toHaveTextContent("2");
+    expect(markers[1]).toHaveAttribute(
+      "data-timestamp",
+      String(Date.parse(laterEvent.occurred_at)),
+    );
+    expect(timelineEvents[0]).toHaveTextContent(earlierEvent.description);
+    expect(timelineEvents[1]).toHaveTextContent(laterEvent.description);
   });
 
   it("distinguishes an experiment that has not started", async () => {

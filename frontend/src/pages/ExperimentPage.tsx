@@ -108,6 +108,10 @@ export default function ExperimentPage({
   );
   const hasReadings = readings.series.some(({ readings: items }) => items.length);
   const notStarted = !experiment.started_at;
+  const orderedEvents = [...experiment.events].sort(
+    (left, right) =>
+      Date.parse(left.occurred_at) - Date.parse(right.occurred_at),
+  );
 
   return (
     <main className="experiment-page">
@@ -196,7 +200,7 @@ export default function ExperimentPage({
             <p>The experiment is underway, but no readings fall within its timeline.</p>
           </div>
         ) : (
-          <ExperimentChart series={readings.series} events={experiment.events} />
+          <ExperimentChart series={readings.series} events={orderedEvents} />
         )}
 
         {emptyPoints.length > 0 && hasReadings && (
@@ -207,7 +211,7 @@ export default function ExperimentPage({
         )}
       </section>
 
-      <ExperimentEventTimeline events={experiment.events} />
+      <ExperimentEventTimeline events={orderedEvents} />
     </main>
   );
 }

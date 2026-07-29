@@ -8,11 +8,6 @@ interface ExperimentEventTimelineProps {
 export default function ExperimentEventTimeline({
   events,
 }: ExperimentEventTimelineProps) {
-  const orderedEvents = [...events].sort(
-    (left, right) =>
-      Date.parse(left.occurred_at) - Date.parse(right.occurred_at),
-  );
-
   return (
     <section className="panel event-section" aria-labelledby="event-heading">
       <div className="section-heading">
@@ -23,15 +18,15 @@ export default function ExperimentEventTimeline({
         <span className="count-badge">{events.length}</span>
       </div>
 
-      {orderedEvents.length === 0 ? (
+      {events.length === 0 ? (
         <div className="inline-empty" data-testid="no-events">
           <strong>No events recorded</strong>
           <p>Temperature readings are available, but no interventions or observations have been logged.</p>
         </div>
       ) : (
         <ol className="event-timeline">
-          {orderedEvents.map((event) => (
-            <li key={event.id}>
+          {events.map((event) => (
+            <li key={event.id} data-testid="timeline-event">
               <div className="event-dot" aria-hidden="true" />
               <div className="event-card">
                 <div className="event-meta">
