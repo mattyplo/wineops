@@ -1,12 +1,13 @@
 import { useEffect, useState } from "react";
 import { getLatestReadings } from "./api/readings";
 import SensorCard from "./components/SensorCard";
+import ExperimentPage from "./pages/ExperimentPage";
 import type { Reading } from "./types/reading";
 
 import "./App.css";
 
 
-function App() {
+function Dashboard() {
 
   const [readings, setReadings] = useState<Reading[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -68,5 +69,14 @@ function App() {
   );
 }
 
+function App() {
+  const match = window.location.pathname.match(/^\/experiments\/([^/]+)\/?$/);
+
+  if (match) {
+    return <ExperimentPage experimentId={decodeURIComponent(match[1])} />;
+  }
+
+  return <Dashboard />;
+}
 
 export default App;

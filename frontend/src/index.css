@@ -9,7 +9,27 @@
 body {
   margin: 0;
   font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
-  background: #0f1115;
+  background:
+    radial-gradient(circle at 85% -10%, rgba(93, 125, 102, 0.18), transparent 34rem),
+    #0f1418;
   color: #e6e6e6;
 }
- 
+
+button,
+a {
+  font: inherit;
+}
+
+a {
+  color: #e9b777;
+}
+
+button {
+  border: 1px solid #d7a35d;
+  border-radius: 8px;
+  padding: 0.7rem 1rem;
+  background: #d7a35d;
+  color: #11181d;
+  cursor: pointer;
+  font-weight: 700;
+}
