@@ -1,6 +1,9 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { ExperimentRepository } from "../src/repositories/experiments";
+import {
+  ExperimentRepository,
+  resolveSensorAssignments,
+} from "../src/repositories/experiments";
 import {
   createExperimentService,
   ExperimentNotFoundError,
@@ -10,7 +13,7 @@ import {
   ExperimentRecord,
   ExperimentSummary,
   MonitoringPoint,
-  SensorAssignment,
+  ResolvedSensorAssignment,
   TemperatureReading,
 } from "../src/types/experiments";
 
@@ -29,7 +32,7 @@ interface Fixture {
   experiment?: ExperimentRecord | null;
   monitoringPoints?: MonitoringPoint[];
   events?: ExperimentEvent[];
-  assignments?: SensorAssignment[];
+  assignments?: ResolvedSensorAssignment[];
   readings?: TemperatureReading[];
 }
 
@@ -47,7 +50,7 @@ function fixtureRepository(fixture: Fixture = {}): ExperimentRepository {
     async findEvents() {
       return [...(fixture.events ?? [])];
     },
-    async findSensorAssignments() {
+    async findResolvedSensorAssignments() {
       return fixture.assignments ?? [];
     },
     async findTemperatureReadings() {
@@ -55,6 +58,54 @@ function fixtureRepository(fixture: Fixture = {}): ExperimentRepository {
     },
   };
 }
+
+describe("sensor assignment resolution", () => {
+  it("maps assignment UUIDs to reading hardware IDs", () => {
+    const result = resolveSensorAssignments(
+      [
+        {
+          sensor_id: "2b13f921-fbd0-4c1f-b109-c56b0cfa86e1",
+          monitoring_point_id: "water",
+          started_at: "2026-07-21T05:50:00.000Z",
+          ended_at: null,
+        },
+      ],
+      [
+        {
+          id: "2b13f921-fbd0-4c1f-b109-c56b0cfa86e1",
+          hardware_id: "28-00000021a7d3",
+        },
+      ],
+    );
+
+    assert.deepEqual(result, [
+      {
+        hardware_id: "28-00000021a7d3",
+        monitoring_point_id: "water",
+        started_at: "2026-07-21T05:50:00.000Z",
+        ended_at: null,
+      },
+    ]);
+  });
+
+  it("fails explicitly when an assignment UUID cannot be resolved", () => {
+    assert.throws(
+      () =>
+        resolveSensorAssignments(
+          [
+            {
+              sensor_id: "missing-sensor-uuid",
+              monitoring_point_id: "water",
+              started_at: "2026-07-21T05:50:00.000Z",
+              ended_at: null,
+            },
+          ],
+          [],
+        ),
+      /Unable to resolve sensor assignment UUID missing-sensor-uuid/,
+    );
+  });
+});
 
 describe("experiment service", () => {
   it("lists experiments by created_at descending", async () => {
@@ -134,7 +185,7 @@ describe("experiment service", () => {
         monitoringPoints: [{ id: "water", name: "Water Bath" }],
         assignments: [
           {
-            sensor_id: "sensor-a",
+            hardware_id: "28-00000021a7d3",
             monitoring_point_id: "water",
             started_at: "2026-07-21T06:00:00.000Z",
             ended_at: "2026-07-21T06:30:00.000Z",
@@ -142,22 +193,22 @@ describe("experiment service", () => {
         ],
         readings: [
           {
-            sensor_id: "sensor-a",
+            sensor_id: "28-00000021a7d3",
             temperature_c: 20,
             recorded_at: "2026-07-21T05:50:00.000Z",
           },
           {
-            sensor_id: "sensor-a",
+            sensor_id: "28-00000021a7d3",
             temperature_c: 21,
             recorded_at: "2026-07-21T06:00:00.000Z",
           },
           {
-            sensor_id: "sensor-a",
+            sensor_id: "28-00000021a7d3",
             temperature_c: 22,
             recorded_at: "2026-07-21T06:30:00.000Z",
           },
           {
-            sensor_id: "sensor-a",
+            sensor_id: "28-00000021a7d3",
             temperature_c: 23,
             recorded_at: "2026-07-21T07:00:00.000Z",
           },
@@ -179,6 +230,39 @@ describe("experiment service", () => {
     ]);
   });
 
+  it("queries legacy readings by resolved hardware ID", async () => {
+    const requestedHardwareIds: string[][] = [];
+    const readings = [
+      {
+        sensor_id: "28-00000021a7d3",
+        temperature_c: 21,
+        recorded_at: "2026-07-21T06:00:00.000Z",
+      },
+    ];
+    const repository = fixtureRepository({
+      monitoringPoints: [{ id: "water", name: "Water Bath" }],
+      assignments: [
+        {
+          hardware_id: "28-00000021a7d3",
+          monitoring_point_id: "water",
+          started_at: "2026-07-21T05:50:00.000Z",
+          ended_at: null,
+        },
+      ],
+      readings,
+    });
+    repository.findTemperatureReadings = async (hardwareIds) => {
+      requestedHardwareIds.push(hardwareIds);
+      return readings;
+    };
+    const service = createExperimentService(repository);
+
+    const result = await service.getExperimentReadings(experiment.id);
+
+    assert.deepEqual(requestedHardwareIds, [["28-00000021a7d3"]]);
+    assert.equal(result.series[0].readings[0].temperature_c, 21);
+  });
+
   it("applies inclusive experiment start and end boundaries", async () => {
     const service = createExperimentService(
       fixtureRepository({
@@ -189,7 +273,7 @@ describe("experiment service", () => {
         monitoringPoints: [{ id: "water", name: "Water Bath" }],
         assignments: [
           {
-            sensor_id: "sensor-a",
+            hardware_id: "28-00000021a7d3",
             monitoring_point_id: "water",
             started_at: "2026-07-20T00:00:00.000Z",
             ended_at: null,
@@ -197,22 +281,22 @@ describe("experiment service", () => {
         ],
         readings: [
           {
-            sensor_id: "sensor-a",
+            sensor_id: "28-00000021a7d3",
             temperature_c: 20,
             recorded_at: "2026-07-21T05:49:59.999Z",
           },
           {
-            sensor_id: "sensor-a",
+            sensor_id: "28-00000021a7d3",
             temperature_c: 21,
             recorded_at: "2026-07-21T05:50:00.000Z",
           },
           {
-            sensor_id: "sensor-a",
+            sensor_id: "28-00000021a7d3",
             temperature_c: 22,
             recorded_at: "2026-07-21T07:00:00.000Z",
           },
           {
-            sensor_id: "sensor-a",
+            sensor_id: "28-00000021a7d3",
             temperature_c: 23,
             recorded_at: "2026-07-21T07:00:00.001Z",
           },
@@ -234,7 +318,7 @@ describe("experiment service", () => {
         monitoringPoints: [{ id: "water", name: "Water Bath" }],
         assignments: [
           {
-            sensor_id: "ambient-sensor",
+            hardware_id: "28-00000021a7d3",
             monitoring_point_id: "ambient",
             started_at: "2026-07-21T05:50:00.000Z",
             ended_at: null,
@@ -242,7 +326,7 @@ describe("experiment service", () => {
         ],
         readings: [
           {
-            sensor_id: "ambient-sensor",
+            sensor_id: "28-00000021a7d3",
             temperature_c: 23,
             recorded_at: "2026-07-21T06:00:00.000Z",
           },
@@ -261,7 +345,7 @@ describe("experiment service", () => {
     const repository = fixtureRepository({
       monitoringPoints: [{ id: "ambient", name: "Ambient Air" }],
     });
-    repository.findSensorAssignments = async (_ids, start, end) => {
+    repository.findResolvedSensorAssignments = async (_ids, start, end) => {
       calls.push([start, end]);
       return [];
     };
@@ -283,13 +367,13 @@ describe("experiment service", () => {
         monitoringPoints: [{ id: "water", name: "Water Bath" }],
         assignments: [
           {
-            sensor_id: "old-sensor",
+            hardware_id: "28-00000021a7d3",
             monitoring_point_id: "water",
             started_at: "2026-07-21T05:00:00.000Z",
             ended_at: "2026-07-21T06:30:00.000Z",
           },
           {
-            sensor_id: "new-sensor",
+            hardware_id: "28-00000021b23b",
             monitoring_point_id: "water",
             started_at: "2026-07-21T06:30:00.000Z",
             ended_at: null,
@@ -297,12 +381,12 @@ describe("experiment service", () => {
         ],
         readings: [
           {
-            sensor_id: "new-sensor",
+            sensor_id: "28-00000021b23b",
             temperature_c: 22,
             recorded_at: "2026-07-21T07:00:00.000Z",
           },
           {
-            sensor_id: "old-sensor",
+            sensor_id: "28-00000021a7d3",
             temperature_c: 21,
             recorded_at: "2026-07-21T06:00:00.000Z",
           },

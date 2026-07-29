@@ -82,14 +82,16 @@ export function createExperimentService(
         return emptyResult;
       }
 
-      const assignments = await repository.findSensorAssignments(
+      const assignments = await repository.findResolvedSensorAssignments(
         monitoringPoints.map(({ id }) => id),
         experiment.started_at,
         windowEnd,
       );
-      const sensorIds = [...new Set(assignments.map(({ sensor_id }) => sensor_id))];
+      const hardwareIds = [
+        ...new Set(assignments.map(({ hardware_id }) => hardware_id)),
+      ];
       const readings = await repository.findTemperatureReadings(
-        sensorIds,
+        hardwareIds,
         experiment.started_at,
         windowEnd,
       );
@@ -116,7 +118,7 @@ export function createExperimentService(
 
         for (const assignment of assignments) {
           if (
-            assignment.sensor_id === reading.sensor_id &&
+            assignment.hardware_id === reading.sensor_id &&
             readingTime >= Date.parse(assignment.started_at) &&
             (assignment.ended_at === null ||
               readingTime <= Date.parse(assignment.ended_at))

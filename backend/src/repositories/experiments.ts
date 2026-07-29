@@ -4,7 +4,9 @@ import {
   ExperimentRecord,
   ExperimentSummary,
   MonitoringPoint,
+  ResolvedSensorAssignment,
   SensorAssignment,
+  SensorRecord,
   TemperatureReading,
 } from "../types/experiments";
 
@@ -13,13 +15,13 @@ export interface ExperimentRepository {
   findExperiment(experimentId: string): Promise<ExperimentRecord | null>;
   findMonitoringPoints(experimentId: string): Promise<MonitoringPoint[]>;
   findEvents(experimentId: string): Promise<ExperimentEvent[]>;
-  findSensorAssignments(
+  findResolvedSensorAssignments(
     monitoringPointIds: string[],
     windowStart: string,
     windowEnd: string,
-  ): Promise<SensorAssignment[]>;
+  ): Promise<ResolvedSensorAssignment[]>;
   findTemperatureReadings(
-    sensorIds: string[],
+    hardwareIds: string[],
     windowStart: string,
     windowEnd: string,
   ): Promise<TemperatureReading[]>;
@@ -35,6 +37,30 @@ function dataOrThrow<T>(data: T | null, error: { message: string } | null): T {
   }
 
   return data;
+}
+
+export function resolveSensorAssignments(
+  assignments: SensorAssignment[],
+  sensors: SensorRecord[],
+): ResolvedSensorAssignment[] {
+  const hardwareIdBySensorId = new Map(
+    sensors.map(({ id, hardware_id }) => [id, hardware_id]),
+  );
+
+  return assignments.map(({ sensor_id, ...assignment }) => {
+    const hardwareId = hardwareIdBySensorId.get(sensor_id);
+
+    if (!hardwareId) {
+      throw new Error(
+        `Unable to resolve sensor assignment UUID ${sensor_id} to a hardware ID`,
+      );
+    }
+
+    return {
+      ...assignment,
+      hardware_id: hardwareId,
+    };
+  });
 }
 
 export const experimentRepository: ExperimentRepository = {
@@ -96,30 +122,49 @@ export const experimentRepository: ExperimentRepository = {
     return dataOrThrow(data, error) as ExperimentEvent[];
   },
 
-  async findSensorAssignments(monitoringPointIds, windowStart, windowEnd) {
+  async findResolvedSensorAssignments(
+    monitoringPointIds,
+    windowStart,
+    windowEnd,
+  ) {
     if (monitoringPointIds.length === 0) {
       return [];
     }
 
-    const { data, error } = await supabase
+    const { data: assignmentData, error: assignmentError } = await supabase
       .from("sensor_assignments")
       .select("sensor_id,monitoring_point_id,started_at,ended_at")
       .in("monitoring_point_id", monitoringPointIds)
       .lte("started_at", windowEnd)
       .or(`ended_at.is.null,ended_at.gte.${windowStart}`);
 
-    return dataOrThrow(data, error) as SensorAssignment[];
+    const assignments = dataOrThrow(
+      assignmentData,
+      assignmentError,
+    ) as SensorAssignment[];
+    if (assignments.length === 0) {
+      return [];
+    }
+
+    const sensorIds = [...new Set(assignments.map(({ sensor_id }) => sensor_id))];
+    const { data: sensorData, error: sensorError } = await supabase
+      .from("sensors")
+      .select("id,hardware_id")
+      .in("id", sensorIds);
+
+    const sensors = dataOrThrow(sensorData, sensorError) as SensorRecord[];
+    return resolveSensorAssignments(assignments, sensors);
   },
 
-  async findTemperatureReadings(sensorIds, windowStart, windowEnd) {
-    if (sensorIds.length === 0) {
+  async findTemperatureReadings(hardwareIds, windowStart, windowEnd) {
+    if (hardwareIds.length === 0) {
       return [];
     }
 
     const { data, error } = await supabase
       .from("temperature_readings")
       .select("sensor_id,temperature_c,recorded_at")
-      .in("sensor_id", sensorIds)
+      .in("sensor_id", hardwareIds)
       .gte("recorded_at", windowStart)
       .lte("recorded_at", windowEnd)
       .order("recorded_at", { ascending: true });

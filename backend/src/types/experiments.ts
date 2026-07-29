@@ -30,6 +30,18 @@ export interface SensorAssignment {
   ended_at: string | null;
 }
 
+export interface SensorRecord {
+  id: string;
+  hardware_id: string;
+}
+
+export interface ResolvedSensorAssignment {
+  hardware_id: string;
+  monitoring_point_id: string;
+  started_at: string;
+  ended_at: string | null;
+}
+
 export interface TemperatureReading {
   sensor_id: string;
   temperature_c: number;
