@@ -109,23 +109,32 @@ describe("sensor assignment resolution", () => {
 });
 
 describe("temperature reading pagination", () => {
-  it("fetches subsequent pages until a page contains fewer than 1000 rows", async () => {
-    const pageRequests: Array<[number, number]> = [];
+  it("continues from the last row's composite cursor", async () => {
+    const cursors: Array<{
+      id: string;
+      sensor_id: string;
+      recorded_at: string;
+    } | null> = [];
     const reading = {
+      id: "00000000-0000-4000-8000-000000000001",
       sensor_id: "28-00000021a7d3",
       temperature_c: 21,
       recorded_at: "2026-07-21T06:00:00.000Z",
     };
 
-    const result = await collectTemperatureReadingPages(async (from, to) => {
-      pageRequests.push([from, to]);
-      return from === 0 ? Array(1000).fill(reading) : [reading];
+    const result = await collectTemperatureReadingPages(async (cursor) => {
+      cursors.push(cursor);
+      return cursor === null ? Array(1000).fill(reading) : [reading];
     });
 
     assert.equal(result.length, 1001);
-    assert.deepEqual(pageRequests, [
-      [0, 999],
-      [1000, 1999],
+    assert.deepEqual(cursors, [
+      null,
+      {
+        id: reading.id,
+        sensor_id: reading.sensor_id,
+        recorded_at: reading.recorded_at,
+      },
     ]);
   });
 });
@@ -245,10 +254,6 @@ describe("experiment service", () => {
       {
         temperature_c: 21,
         recorded_at: "2026-07-21T06:00:00.000Z",
-      },
-      {
-        temperature_c: 22,
-        recorded_at: "2026-07-21T06:30:00.000Z",
       },
     ]);
   });
@@ -425,6 +430,49 @@ describe("experiment service", () => {
       result.series[0].readings.map(({ temperature_c }) => temperature_c),
       [21, 22],
     );
+  });
+
+  it("attributes a handoff boundary reading only to the new monitoring point", async () => {
+    const boundary = "2026-07-21T06:30:00.000Z";
+    const service = createExperimentService(
+      fixtureRepository({
+        monitoringPoints: [
+          { id: "ambient", name: "Ambient Air" },
+          { id: "water", name: "Water Bath" },
+        ],
+        assignments: [
+          {
+            hardware_id: "28-00000021a7d3",
+            monitoring_point_id: "ambient",
+            started_at: "2026-07-21T05:00:00.000Z",
+            ended_at: boundary,
+          },
+          {
+            hardware_id: "28-00000021a7d3",
+            monitoring_point_id: "water",
+            started_at: boundary,
+            ended_at: null,
+          },
+        ],
+        readings: [
+          {
+            sensor_id: "28-00000021a7d3",
+            temperature_c: 22,
+            recorded_at: boundary,
+          },
+        ],
+      }),
+    );
+
+    const result = await service.getExperimentReadings(experiment.id);
+
+    assert.deepEqual(result.series, [
+      {
+        monitoring_point_id: "water",
+        name: "Water Bath",
+        readings: [{ temperature_c: 22, recorded_at: boundary }],
+      },
+    ]);
   });
 
   it("returns empty readings for an experiment that has not started", async () => {

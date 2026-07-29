@@ -121,7 +121,7 @@ export function createExperimentService(
             assignment.hardware_id === reading.sensor_id &&
             readingTime >= Date.parse(assignment.started_at) &&
             (assignment.ended_at === null ||
-              readingTime <= Date.parse(assignment.ended_at))
+              readingTime < Date.parse(assignment.ended_at))
           ) {
             seriesByMonitoringPoint
               .get(assignment.monitoring_point_id)

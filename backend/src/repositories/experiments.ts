@@ -41,22 +41,39 @@ function dataOrThrow<T>(data: T | null, error: { message: string } | null): T {
 
 const temperatureReadingPageSize = 1000;
 
+interface PaginatedTemperatureReading extends TemperatureReading {
+  id: string;
+}
+
+export interface TemperatureReadingCursor {
+  id: string;
+  sensor_id: string;
+  recorded_at: string;
+}
+
 export async function collectTemperatureReadingPages(
-  fetchPage: (from: number, to: number) => Promise<TemperatureReading[]>,
+  fetchPage: (
+    cursor: TemperatureReadingCursor | null,
+    pageSize: number,
+  ) => Promise<PaginatedTemperatureReading[]>,
 ): Promise<TemperatureReading[]> {
   const readings: TemperatureReading[] = [];
+  let cursor: TemperatureReadingCursor | null = null;
 
   while (true) {
-    const from = readings.length;
-    const page = await fetchPage(
-      from,
-      from + temperatureReadingPageSize - 1,
-    );
+    const page = await fetchPage(cursor, temperatureReadingPageSize);
     readings.push(...page);
 
     if (page.length < temperatureReadingPageSize) {
       return readings;
     }
+
+    const lastReading = page[page.length - 1];
+    cursor = {
+      id: lastReading.id,
+      sensor_id: lastReading.sensor_id,
+      recorded_at: lastReading.recorded_at,
+    };
   }
 }
 
@@ -182,19 +199,31 @@ export const experimentRepository: ExperimentRepository = {
       return [];
     }
 
-    return collectTemperatureReadingPages(async (from, to) => {
-      const { data, error } = await supabase
+    return collectTemperatureReadingPages(async (cursor, pageSize) => {
+      let query = supabase
         .from("temperature_readings")
-        .select("sensor_id,temperature_c,recorded_at")
+        .select("id,sensor_id,temperature_c,recorded_at")
         .in("sensor_id", hardwareIds)
         .gte("recorded_at", windowStart)
         .lte("recorded_at", windowEnd)
         .order("recorded_at", { ascending: true })
         .order("sensor_id", { ascending: true })
         .order("id", { ascending: true })
-        .range(from, to);
+        .limit(pageSize);
 
-      return dataOrThrow(data, error) as TemperatureReading[];
+      if (cursor) {
+        query = query.or(
+          [
+            `recorded_at.gt.${cursor.recorded_at}`,
+            `and(recorded_at.eq.${cursor.recorded_at},sensor_id.gt.${cursor.sensor_id})`,
+            `and(recorded_at.eq.${cursor.recorded_at},sensor_id.eq.${cursor.sensor_id},id.gt.${cursor.id})`,
+          ].join(","),
+        );
+      }
+
+      const { data, error } = await query;
+
+      return dataOrThrow(data, error) as PaginatedTemperatureReading[];
     });
   },
 };
