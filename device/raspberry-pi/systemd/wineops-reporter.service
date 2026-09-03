@@ -6,7 +6,7 @@ After=network-online.target
 [Service]
 Type=simple
 User=__WINEOPS_USER__
-WorkingDirectory="__WINEOPS_APP_DIR__"
+WorkingDirectory=__WINEOPS_APP_DIR__
 ExecStart="__WINEOPS_PYTHON__" -u "__WINEOPS_REPORTER__"
 
 Restart=always
