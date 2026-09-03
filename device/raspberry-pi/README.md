@@ -14,6 +14,15 @@ OS when the required Python, systemd, and 1-Wire facilities are available.
 
 ## Prerequisites
 
+Git is required to download and update WineOps. Install it before cloning the
+repository:
+
+```bash
+sudo apt update
+sudo apt install -y git
+git --version
+```
+
 Connect each DS18B20 sensor to 3.3V, ground, and GPIO4. Enable 1-Wire:
 
 ```bash
