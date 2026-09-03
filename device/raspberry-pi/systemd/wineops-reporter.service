@@ -5,11 +5,9 @@ After=network-online.target
 
 [Service]
 Type=simple
-
-User=matthew
-WorkingDirectory=/home/matthew/wineops/device/raspberry-pi/temp_sensor
-
-ExecStart=/home/matthew/wineops/device/raspberry-pi/temp_sensor/venv/bin/python -u /home/matthew/wineops/device/raspberry-pi/temp_sensor/supabase_reporter.py
+User=__WINEOPS_USER__
+WorkingDirectory="__WINEOPS_APP_DIR__"
+ExecStart="__WINEOPS_PYTHON__" -u "__WINEOPS_REPORTER__"
 
 Restart=always
 RestartSec=30
