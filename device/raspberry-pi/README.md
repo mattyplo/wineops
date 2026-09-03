@@ -1,9 +1,16 @@
 # WineOps Raspberry Pi Setup
 
-This directory contains the WineOps temperature reporter for a Raspberry Pi 3
-running Raspberry Pi OS Lite (32-bit). The setup script creates the Python
-environment, configures DS18B20 sensors, and installs a systemd service that
-starts reporting after every reboot.
+This directory contains the WineOps temperature reporter for Raspberry Pi
+computers running Raspberry Pi OS. The setup is independent of Raspberry Pi
+model and OS architecture: it checks for the operating-system capabilities it
+needs instead of maintaining a list of supported boards. The setup script
+creates the Python environment, configures DS18B20 sensors, and installs a
+systemd service that starts reporting after every reboot.
+
+The script reports the detected board model, CPU architecture, and operating
+system for troubleshooting, but it does not change behavior based on a
+specific Raspberry Pi generation. It can run on 32-bit or 64-bit Raspberry Pi
+OS when the required Python, systemd, and 1-Wire facilities are available.
 
 ## Prerequisites
 
