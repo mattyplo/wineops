@@ -91,23 +91,16 @@ The `28-*` entries represent DS18B20 sensors.
 
 ## Software Setup
 
-Create a virtual environment:
+Use the device-level [`setup.sh`](../setup.sh) from the repository root. It
+creates the virtual environment, installs dependencies, configures sensors, and
+installs the systemd service:
 
 ```bash
-python3 -m venv venv
+./device/raspberry-pi/setup.sh
 ```
 
-Activate:
-
-```bash
-source venv/bin/activate
-```
-
-Install dependencies:
-
-```bash
-pip install -r requirements.txt
-```
+See the [Raspberry Pi setup guide](../README.md) for sparse-checkout,
+reconfiguration, updating, and troubleshooting instructions.
 
 ## Configuration
 
@@ -145,17 +138,10 @@ The reporter will:
 WineOps uses a systemd service so temperature reporting starts automatically
 after a Raspberry Pi restart or power loss.
 
-Install the service:
+The device setup script installs, enables, and starts the service with paths
+rendered for the current Pi user and checkout location. Check it with:
 
 ```bash
-sudo cp ../systemd/wineops-reporter.service \
-  /etc/systemd/system/wineops-reporter.service
-
-sudo systemctl daemon-reload
-sudo systemctl enable wineops-reporter.service
-sudo systemctl start wineops-reporter.service
-
-# Check the service:
 systemctl status wineops-reporter.service
 journalctl -u wineops-reporter.service -b
 ```
