@@ -74,6 +74,13 @@ git pull
 Rerunning setup preserves `~/.supabase_env`, updates Python dependencies,
 updates the service definition, and restarts the reporter.
 
+The reporter installs the exact versions in
+[`temp_sensor/requirements.txt`](temp_sensor/requirements.txt). Direct
+dependencies are listed separately in
+[`temp_sensor/requirements.in`](temp_sensor/requirements.in); update the pinned
+file only after testing a newly resolved dependency set on the supported Pi OS
+and Python versions.
+
 ## Reconfiguring
 
 To explicitly replace the Supabase or sensor configuration:

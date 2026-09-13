@@ -233,7 +233,7 @@ setup_virtualenv() {
     printf '\nReusing Python virtual environment: %s\n' "${VENV_DIR}"
   fi
   "${VENV_DIR}/bin/python" -m pip install --upgrade pip
-  "${VENV_DIR}/bin/python" -m pip install --upgrade -r "${REQUIREMENTS_FILE}"
+  "${VENV_DIR}/bin/python" -m pip install -r "${REQUIREMENTS_FILE}"
 }
 
 escape_sed_replacement() {

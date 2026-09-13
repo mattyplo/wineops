@@ -1,2 +1,7 @@
-requests
-python-dotenv
+# Generated from requirements.in for repeatable Raspberry Pi installations.
+certifi==2026.7.22
+charset-normalizer==3.5.1
+idna==3.15
+python-dotenv==1.0.1
+requests==2.32.4
+urllib3==2.2.3
