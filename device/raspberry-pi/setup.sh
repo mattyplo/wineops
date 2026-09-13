@@ -8,7 +8,7 @@ readonly REQUIREMENTS_FILE="${SENSOR_APP_DIR}/requirements.txt"
 readonly VENV_DIR="${SENSOR_APP_DIR}/venv"
 readonly SERVICE_TEMPLATE="${SCRIPT_DIR}/systemd/wineops-reporter.service"
 readonly SERVICE_NAME="wineops-reporter.service"
-readonly ENV_FILE="${WINEOPS_ENV_FILE:-${HOME}/.supabase_env}"
+readonly ENV_FILE="${HOME}/.supabase_env"
 readonly W1_DEVICES_DIR="${WINEOPS_W1_DEVICES_DIR:-/sys/bus/w1/devices}"
 readonly SYSTEMD_DIR="${WINEOPS_SYSTEMD_DIR:-/etc/systemd/system}"
 
