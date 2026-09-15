@@ -57,6 +57,7 @@ On its first run, the script prompts for:
 
 - `SUPABASE_URL`
 - `SUPABASE_KEY` (input is hidden)
+- `DEVICE_ID` (a stable, unique name for that Raspberry Pi)
 - `SENSORS` (detected `28-*` IDs are offered as the default)
 
 Configuration is stored in `~/.supabase_env` with permissions `600`. An
@@ -91,6 +92,9 @@ To explicitly replace the Supabase or sensor configuration:
 
 The previous environment file is retained as a timestamped backup. Secrets are
 never accepted as command-line arguments.
+
+Existing installations must use `--reconfigure` once to add `DEVICE_ID` before
+updating to the health-monitoring reporter.
 
 ## Service operation
 

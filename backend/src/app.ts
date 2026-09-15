@@ -6,11 +6,17 @@ import {
   experimentRoutes,
 } from "./routes/experiments";
 import { readingRoutes } from "./routes/readings";
+import {
+  createSensorHealthRoutes,
+  sensorHealthRoutes,
+} from "./routes/health";
 import { ExperimentService } from "./services/experiments";
+import { HealthService } from "./services/health";
 import { supabase } from "./clients/supabase";
 
 interface BuildAppOptions {
   experimentService?: ExperimentService;
+  healthService?: HealthService;
   logger?: boolean;
 }
 
@@ -43,6 +49,13 @@ export function buildApp(options: BuildAppOptions = {}) {
   app.register(readingRoutes, {
     prefix: "/api/readings",
   });
+
+  app.register(
+    options.healthService
+      ? createSensorHealthRoutes(options.healthService)
+      : sensorHealthRoutes,
+    { prefix: "/api/sensors" },
+  );
 
   app.register(
     options.experimentService

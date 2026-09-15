@@ -63,6 +63,16 @@
   color: #4caf50;
 }
 
+.sensor-status.stale {
+  background: rgba(215, 163, 93, 0.15);
+  color: #e9b777;
+}
+
+.sensor-status.offline {
+  background: rgba(232, 112, 112, 0.15);
+  color: #e87070;
+}
+
 
 /* ==========================================
    Temperature Reading

@@ -115,6 +115,7 @@ Example:
 ```env
 SUPABASE_URL=https://your-project.supabase.co
 SUPABASE_KEY=your-key
+DEVICE_ID=cellar-pi
 SENSORS=28-00000021a7d3,28-00000021b23b
 ```
 
@@ -165,16 +166,18 @@ tail -f reporter.log
 Each temperature reading contains:
 
 - `sensor_id`
+- `device_id` (the stable identifier configured for this Raspberry Pi)
 - `temperature_c`
-- `timestamp`
+- `reading_timestamp` (the device-reported measurement time)
 
 Example:
 
 ```json
 {
   "sensor_id": "28-00000021a7d3",
+  "device_id": "cellar-pi",
   "temperature_c": 22.625,
-  "timestamp": "2026-06-26T05:42:21Z"
+  "reading_timestamp": "2026-06-26T05:42:21Z"
 }
 ```
 
