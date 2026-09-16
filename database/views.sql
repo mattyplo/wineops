@@ -17,16 +17,19 @@ grant select on latest_temperature_readings to service_role;
 
 create or replace view sensor_health as
 with latest_sensor_readings as (
-    select distinct on (sensor_id)
-        id,
-        sensor_id,
-        device_id,
-        temperature_c,
-        recorded_at,
-        reading_timestamp
+    select distinct on (temperature_readings.sensor_id)
+        temperature_readings.id,
+        temperature_readings.sensor_id,
+        temperature_readings.device_id,
+        temperature_readings.temperature_c,
+        temperature_readings.recorded_at,
+        temperature_readings.reading_timestamp
     from temperature_readings
     inner join sensors on sensors.hardware_id = temperature_readings.sensor_id
-    order by sensor_id, recorded_at desc, id desc
+    order by
+        temperature_readings.sensor_id,
+        temperature_readings.recorded_at desc,
+        temperature_readings.id desc
 ),
 latest_device_readings as (
     select distinct on (device_id)

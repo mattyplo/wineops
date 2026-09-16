@@ -10,16 +10,19 @@ WHERE device_id IS NOT NULL;
 
 CREATE OR REPLACE VIEW sensor_health AS
 WITH latest_sensor_readings AS (
-    SELECT DISTINCT ON (sensor_id)
-        id,
-        sensor_id,
-        device_id,
-        temperature_c,
-        recorded_at,
-        reading_timestamp
+    SELECT DISTINCT ON (temperature_readings.sensor_id)
+        temperature_readings.id,
+        temperature_readings.sensor_id,
+        temperature_readings.device_id,
+        temperature_readings.temperature_c,
+        temperature_readings.recorded_at,
+        temperature_readings.reading_timestamp
     FROM temperature_readings
     INNER JOIN sensors ON sensors.hardware_id = temperature_readings.sensor_id
-    ORDER BY sensor_id, recorded_at DESC, id DESC
+    ORDER BY
+        temperature_readings.sensor_id,
+        temperature_readings.recorded_at DESC,
+        temperature_readings.id DESC
 ),
 latest_device_readings AS (
     SELECT DISTINCT ON (device_id)
