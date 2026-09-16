@@ -1,28 +1,28 @@
 import { useEffect, useState } from "react";
-import { getLatestReadings } from "./api/readings";
+import { getSensorHealth } from "./api/health";
 import SensorCard from "./components/SensorCard";
 import ExperimentPage from "./pages/ExperimentPage";
-import type { Reading } from "./types/reading";
+import type { SensorHealth } from "./types/health";
 
 import "./App.css";
 
 
 function Dashboard() {
 
-  const [readings, setReadings] = useState<Reading[]>([]);
+  const [sensors, setSensors] = useState<SensorHealth[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
 
 
   useEffect(() => {
 
-    async function loadReadings() {
+    async function loadSensorHealth() {
 
       try {
 
-        const data =
-          await getLatestReadings();
+        const data = await getSensorHealth();
 
-        setReadings(data);
+        setSensors(data);
 
       } catch (err) {
 
@@ -30,11 +30,14 @@ function Dashboard() {
           setError(err.message);
         }
 
+      } finally {
+        setLoading(false);
+
       }
 
     }
 
-    loadReadings();
+    loadSensorHealth();
 
   }, []);
 
@@ -54,14 +57,20 @@ function Dashboard() {
 
       <div className="sensor-grid">
 
-        {readings.map((reading) => (
+        {loading && <p>Loading sensor health…</p>}
+
+        {sensors.map((sensor) => (
 
           <SensorCard
-            key={reading.id}
-            reading={reading}
+            key={sensor.sensor_id}
+            sensor={sensor}
           />
 
         ))}
+
+        {!loading && !error && sensors.length === 0 && (
+          <p>No sensors are available yet.</p>
+        )}
 
       </div>
 

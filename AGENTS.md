@@ -14,6 +14,7 @@ The currently implemented data path is: Raspberry Pi → Supabase → Fastify AP
 ## Current domain facts
 
 - Temperature values are stored and exchanged as `temperature_c`; the frontend may format them for display.
+- Each Pi reporter is configured with a stable `DEVICE_ID` and sends it with every new reading. Device health is inferred from stored sensor readings; there are no heartbeats.
 - A `sensors` row identifies physical hardware by `hardware_id`. A `monitoring_points` row identifies the thing being observed. `sensor_assignments` records their time-bounded relationship, which the experiment API resolves when assembling historical series.
 - Do not assume unimplemented reliability features exist. In particular, the current Pi reporter has no persistent offline queue or retry/deduplication mechanism.
 
