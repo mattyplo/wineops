@@ -17,17 +17,18 @@ WITH latest_sensor_readings AS (
         recorded_at,
         reading_timestamp
     FROM temperature_readings
+    INNER JOIN sensors ON sensors.hardware_id = temperature_readings.sensor_id
     ORDER BY sensor_id, recorded_at DESC, id DESC
 ),
 latest_device_readings AS (
     SELECT DISTINCT ON (device_id)
         device_id,
         recorded_at
-    FROM temperature_readings
+    FROM latest_sensor_readings
     WHERE device_id IS NOT NULL
     ORDER BY device_id, recorded_at DESC, id DESC
 ),
-known_sensor_health AS (
+registered_sensor_health AS (
     SELECT
         sensors.hardware_id AS sensor_id,
         sensors.state AS sensor_state,
@@ -38,18 +39,6 @@ known_sensor_health AS (
     FROM sensors
     LEFT JOIN latest_sensor_readings
         ON latest_sensor_readings.sensor_id = sensors.hardware_id
-),
-unregistered_sensor_health AS (
-    SELECT
-        latest_sensor_readings.sensor_id,
-        NULL::text AS sensor_state,
-        latest_sensor_readings.device_id,
-        latest_sensor_readings.temperature_c,
-        latest_sensor_readings.recorded_at,
-        latest_sensor_readings.reading_timestamp
-    FROM latest_sensor_readings
-    LEFT JOIN sensors ON sensors.hardware_id = latest_sensor_readings.sensor_id
-    WHERE sensors.id IS NULL
 )
 SELECT
     sensor_health.sensor_id,
@@ -71,11 +60,7 @@ SELECT
         WHEN latest_device_readings.recorded_at >= now() - INTERVAL '60 minutes' THEN 'stale'
         ELSE 'offline'
     END AS device_health_status
-FROM (
-    SELECT * FROM known_sensor_health
-    UNION ALL
-    SELECT * FROM unregistered_sensor_health
-) AS sensor_health
+FROM registered_sensor_health AS sensor_health
 LEFT JOIN latest_device_readings
     ON latest_device_readings.device_id = sensor_health.device_id;
 

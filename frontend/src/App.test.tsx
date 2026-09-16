@@ -209,7 +209,7 @@ describe("dashboard health", () => {
       sensors: [
         {
           sensor_id: "28-online",
-          sensor_state: "ACTIVE",
+          sensor_state: "INACTIVE",
           device_id: "cellar-pi",
           temperature_c: 20.5,
           last_seen_at: "2026-09-14T10:00:00.000Z",
@@ -249,6 +249,7 @@ describe("dashboard health", () => {
     expect(screen.getByText("Stale")).toBeInTheDocument();
     expect(screen.getByText("Offline")).toBeInTheDocument();
     expect(screen.getByText("No successful reading")).toBeInTheDocument();
+    expect(screen.getByText("28-offline")).toBeInTheDocument();
     expect(screen.getAllByText("cellar-pi (online)")).toHaveLength(2);
     expect(fetch).toHaveBeenCalledWith(
       expect.stringMatching(/\/api\/sensors\/health$/),

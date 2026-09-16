@@ -91,8 +91,9 @@ latest_temperature_readings
 - Latest reading per sensor
 
 sensor_health
-- Current per-sensor health, based on Supabase receipt time: online under 30
-  minutes, stale from 30 through 60 minutes, and offline after 60 minutes.
+- Current health for registered sensors only, based on Supabase receipt time:
+  online under 30 minutes, stale from 30 through 60 minutes, and offline after
+  60 minutes. All sensor lifecycle states are included.
 - Device health is inferred from the latest successful reading from any sensor
   with the same `device_id`; it cannot distinguish a failed Pi, network,
   reporter, or simultaneous sensor failure without a heartbeat.
