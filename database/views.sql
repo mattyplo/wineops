@@ -18,6 +18,7 @@ grant select on latest_temperature_readings to service_role;
 create or replace view sensor_health as
 with latest_sensor_readings as (
     select distinct on (sensor_id)
+        id,
         sensor_id,
         device_id,
         temperature_c,

@@ -11,6 +11,7 @@ WHERE device_id IS NOT NULL;
 CREATE OR REPLACE VIEW sensor_health AS
 WITH latest_sensor_readings AS (
     SELECT DISTINCT ON (sensor_id)
+        id,
         sensor_id,
         device_id,
         temperature_c,
