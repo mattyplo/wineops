@@ -193,3 +193,66 @@ describe("experiment route", () => {
     await waitFor(() => expect(fetch).toHaveBeenCalledTimes(2));
   });
 });
+
+describe("dashboard health", () => {
+  beforeEach(() => {
+    window.history.replaceState({}, "", "/");
+  });
+
+  afterEach(() => {
+    cleanup();
+    vi.restoreAllMocks();
+  });
+
+  it("displays online, stale, and offline sensor health from the backend", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(await response({
+      sensors: [
+        {
+          sensor_id: "28-online",
+          sensor_state: "INACTIVE",
+          device_id: "cellar-pi",
+          temperature_c: 20.5,
+          last_seen_at: "2026-09-14T10:00:00.000Z",
+          reading_timestamp: "2026-09-14T09:59:59.000Z",
+          health_status: "online",
+          device_last_seen_at: "2026-09-14T10:00:00.000Z",
+          device_health_status: "online",
+        },
+        {
+          sensor_id: "28-stale",
+          sensor_state: "ACTIVE",
+          device_id: "cellar-pi",
+          temperature_c: 20,
+          last_seen_at: "2026-09-14T09:30:00.000Z",
+          reading_timestamp: null,
+          health_status: "stale",
+          device_last_seen_at: "2026-09-14T10:00:00.000Z",
+          device_health_status: "online",
+        },
+        {
+          sensor_id: "28-offline",
+          sensor_state: "ACTIVE",
+          device_id: null,
+          temperature_c: null,
+          last_seen_at: null,
+          reading_timestamp: null,
+          health_status: "offline",
+          device_last_seen_at: null,
+          device_health_status: null,
+        },
+      ],
+    }));
+    render(<App />);
+
+    expect(await screen.findByText("28-online")).toBeInTheDocument();
+    expect(screen.getByText("Online")).toBeInTheDocument();
+    expect(screen.getByText("Stale")).toBeInTheDocument();
+    expect(screen.getByText("Offline")).toBeInTheDocument();
+    expect(screen.getByText("No successful reading")).toBeInTheDocument();
+    expect(screen.getByText("28-offline")).toBeInTheDocument();
+    expect(screen.getAllByText("cellar-pi (online)")).toHaveLength(2);
+    expect(fetch).toHaveBeenCalledWith(
+      expect.stringMatching(/\/api\/sensors\/health$/),
+    );
+  });
+});

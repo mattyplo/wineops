@@ -121,6 +121,8 @@ GET /health
 
 GET /api/readings/latest
 
+GET /api/sensors/health
+
 GET /api/experiments
 
 GET /api/experiments/:id

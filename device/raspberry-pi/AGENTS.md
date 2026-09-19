@@ -4,7 +4,7 @@ This directory contains the Raspberry Pi DS18B20 reporter. `temp_sensor/get_temp
 
 Use `./setup.sh` as the supported installation, update, and reconfiguration path. Run it as the normal Pi user, not with `sudo`; it requests elevation only when needed. The script checks prerequisites and 1-Wire sensor discovery, creates or updates the Python virtual environment, preserves the existing `~/.supabase_env` by default, renders the systemd unit for the current user and repository location, installs it, and restarts the reporter. Use `./setup.sh --reconfigure` to replace the environment configuration. Do not duplicate these steps or manually install the placeholder service template.
 
-The reporter loads `SUPABASE_URL`, `SUPABASE_KEY`, and comma-separated `SENSORS` from `~/.supabase_env`. It sends `sensor_id`, `temperature_c`, and a UTC `reading_timestamp`. DS18B20 hardware IDs (for example, `28-...`) are the configured identities.
+The reporter loads `SUPABASE_URL`, `SUPABASE_KEY`, stable `DEVICE_ID`, and comma-separated `SENSORS` from `~/.supabase_env`. It sends `sensor_id`, `device_id`, `temperature_c`, and a UTC `reading_timestamp`. DS18B20 hardware IDs (for example, `28-...`) are the configured identities.
 
 The current implementation prints errors for a sensor or HTTP response and continues its loop. It has no persistent offline queue, retry/backoff, or deduplication behavior; do not claim those guarantees without implementing them.
 

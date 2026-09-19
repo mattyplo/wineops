@@ -161,6 +161,11 @@ validate_sensors() {
   done
 }
 
+validate_device_id() {
+  local device_id=$1
+  [[ "${device_id}" =~ ^[[:alnum:]][[:alnum:]_.-]*$ ]]
+}
+
 dotenv_quote() {
   local value=$1
   value=${value//\\/\\\\}
@@ -172,11 +177,15 @@ configure_environment() {
   local supabase_url
   local supabase_key
   local sensors
+  local device_id
   local detected_csv=""
   local temp_file
   local backup_file
 
   if [[ -f "${ENV_FILE}" && "${RECONFIGURE}" != true ]]; then
+    if ! grep -q '^DEVICE_ID=' "${ENV_FILE}"; then
+      die "Existing configuration has no DEVICE_ID. Rerun setup with --reconfigure to add one."
+    fi
     chmod 600 "${ENV_FILE}"
     printf '\nPreserving existing configuration: %s\n' "${ENV_FILE}"
     return
@@ -194,6 +203,10 @@ configure_environment() {
   validate_single_line "SUPABASE_KEY" "${supabase_key}"
   [[ "${supabase_url}" =~ ^https?:// ]] || die "SUPABASE_URL must begin with http:// or https://."
 
+  read -r -p 'DEVICE_ID (stable name for this Pi): ' device_id
+  validate_single_line "DEVICE_ID" "${device_id}"
+  validate_device_id "${device_id}" || die "DEVICE_ID must start with a letter or number and contain only letters, numbers, periods, underscores, or hyphens."
+
   if ((${#DETECTED_SENSORS[@]})); then
     detected_csv="$(IFS=,; printf '%s' "${DETECTED_SENSORS[*]}")"
     read -r -p "SENSORS [${detected_csv}]: " sensors
@@ -209,6 +222,7 @@ configure_environment() {
   {
     printf 'SUPABASE_URL=%s\n' "$(dotenv_quote "${supabase_url}")"
     printf 'SUPABASE_KEY=%s\n' "$(dotenv_quote "${supabase_key}")"
+    printf 'DEVICE_ID=%s\n' "$(dotenv_quote "${device_id}")"
     printf 'SENSORS=%s\n' "$(dotenv_quote "${sensors}")"
   } >"${temp_file}"
 
@@ -286,6 +300,10 @@ configured_sensors() {
   sed -n "s/^SENSORS=['\"]\{0,1\}\([^'\"]*\)['\"]\{0,1\}$/\1/p" "${ENV_FILE}" | head -n 1
 }
 
+configured_device_id() {
+  sed -n "s/^DEVICE_ID=['\"]\{0,1\}\([^'\"]*\)['\"]\{0,1\}$/\1/p" "${ENV_FILE}" | head -n 1
+}
+
 show_summary() {
   printf '\nWineOps setup complete.\n'
   printf '  Application:  %s\n' "${SENSOR_APP_DIR}"
@@ -296,6 +314,7 @@ show_summary() {
     printf '  Detected:     none\n'
   fi
   printf '  Configured:   %s\n' "$(configured_sensors)"
+  printf '  Device ID:    %s\n' "$(configured_device_id)"
 
   if [[ "${SKIP_SYSTEMD}" != true ]]; then
     printf '  Service:      %s\n' "$(systemctl is-active "${SERVICE_NAME}" 2>/dev/null || true)"

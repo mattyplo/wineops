@@ -1,13 +1,17 @@
-import type { Reading } from "../types/reading";
+import type { HealthStatus, SensorHealth } from "../types/health";
 import "./SensorCard.css";
 
 
 interface SensorCardProps {
-  reading: Reading;
+  sensor: SensorHealth;
+}
+
+function statusLabel(status: HealthStatus) {
+  return status[0].toUpperCase() + status.slice(1);
 }
 
 export default function SensorCard({
-  reading,
+  sensor,
 }: SensorCardProps) {
 
   return (
@@ -18,7 +22,7 @@ export default function SensorCard({
 
         <div>
 
-          <h2>{reading.sensor_id}</h2>
+          <h2>{sensor.sensor_id}</h2>
 
           <p className="sensor-type">
             Temperature Sensor
@@ -26,15 +30,17 @@ export default function SensorCard({
 
         </div>
 
-        <span className="sensor-status online">
-          Online
+        <span className={`sensor-status ${sensor.health_status}`}>
+          {statusLabel(sensor.health_status)}
         </span>
 
       </div>
 
       <div className="temperature">
 
-        {reading.temperature_c.toFixed(1)}°C
+        {sensor.temperature_c === null
+          ? "—"
+          : `${sensor.temperature_c.toFixed(1)}°C`}
 
       </div>
 
@@ -47,7 +53,23 @@ export default function SensorCard({
           </span>
 
           <span className="value">
-            {new Date(reading.recorded_at).toLocaleString()}
+            {sensor.last_seen_at
+              ? new Date(sensor.last_seen_at).toLocaleString()
+              : "No successful reading"}
+          </span>
+
+        </div>
+
+        <div>
+
+          <span className="label">
+            Device
+          </span>
+
+          <span className="value">
+            {sensor.device_id
+              ? `${sensor.device_id} (${sensor.device_health_status ?? "unknown"})`
+              : "Not reported"}
           </span>
 
         </div>
