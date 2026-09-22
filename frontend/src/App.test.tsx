@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { cleanup, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import App from "./App";
 
@@ -9,7 +9,13 @@ vi.mock("recharts", () => ({
   ),
   LineChart: ({ children }: { children: ReactNode }) => <div>{children}</div>,
   CartesianGrid: () => null,
-  XAxis: () => null,
+  XAxis: ({ domain }: { domain: [number, number] }) => (
+    <span
+      data-testid="chart-x-axis"
+      data-start={domain[0]}
+      data-end={domain[1]}
+    />
+  ),
   YAxis: () => null,
   Tooltip: () => null,
   Line: ({ name, stroke }: { name: string; stroke: string }) => (
@@ -85,6 +91,7 @@ describe("experiment route", () => {
 
   afterEach(() => {
     cleanup();
+    vi.useRealTimers();
     vi.restoreAllMocks();
   });
 
@@ -138,6 +145,52 @@ describe("experiment route", () => {
     );
     expect(timelineEvents[0]).toHaveTextContent(earlierEvent.description);
     expect(timelineEvents[1]).toHaveTextContent(laterEvent.description);
+  });
+
+  it("shows the full completed timeline and markers before the first reading", async () => {
+    const completedExperiment = {
+      ...experiment,
+      ended_at: "2026-07-21T08:00:00.000Z",
+      events: [
+        {
+          id: "event-before-readings",
+          event_type: "experiment_started",
+          description: "Started before telemetry resumed.",
+          occurred_at: "2026-07-21T05:55:00.000Z",
+        },
+      ],
+    };
+    mockRequests(completedExperiment);
+    render(<App />);
+
+    const axis = await screen.findByTestId("chart-x-axis");
+    expect(axis).toHaveAttribute(
+      "data-start",
+      String(Date.parse(completedExperiment.started_at)),
+    );
+    expect(axis).toHaveAttribute(
+      "data-end",
+      String(Date.parse(completedExperiment.ended_at)),
+    );
+    expect(screen.getByTestId("event-marker")).toHaveAttribute(
+      "data-timestamp",
+      String(Date.parse(completedExperiment.events[0].occurred_at)),
+    );
+  });
+
+  it("uses the current time as the end of an active experiment timeline", async () => {
+    vi.useFakeTimers();
+    const now = new Date("2026-07-21T09:00:00.000Z");
+    vi.setSystemTime(now);
+    mockRequests();
+    render(<App />);
+    await act(async () => {
+      await vi.runAllTimersAsync();
+    });
+
+    const axis = screen.getByTestId("chart-x-axis");
+    expect(axis).toHaveAttribute("data-start", String(Date.parse(experiment.started_at)));
+    expect(axis).toHaveAttribute("data-end", String(now.getTime()));
   });
 
   it("distinguishes an experiment that has not started", async () => {
