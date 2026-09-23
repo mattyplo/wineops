@@ -38,6 +38,8 @@ export function seriesColor(seriesId: string) {
 interface ExperimentChartProps {
   series: ExperimentReadingSeries[];
   events: ExperimentEvent[];
+  timelineStart: string;
+  timelineEnd: string;
 }
 
 interface ChartRow {
@@ -67,8 +69,11 @@ function buildChartData(series: ExperimentReadingSeries[]) {
 export default function ExperimentChart({
   series,
   events,
+  timelineStart,
+  timelineEnd,
 }: ExperimentChartProps) {
   const chartData = buildChartData(series);
+  const timelineDomain = [Date.parse(timelineStart), Date.parse(timelineEnd)];
 
   return (
     <div className="chart-wrap" data-testid="experiment-chart">
@@ -81,7 +86,7 @@ export default function ExperimentChart({
           <XAxis
             dataKey="timestamp"
             type="number"
-            domain={["dataMin", "dataMax"]}
+            domain={timelineDomain}
             scale="time"
             tickFormatter={(value: number) =>
               new Intl.DateTimeFormat(undefined, {

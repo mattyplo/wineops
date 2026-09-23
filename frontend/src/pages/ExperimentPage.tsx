@@ -200,7 +200,12 @@ export default function ExperimentPage({
             <p>The experiment is underway, but no readings fall within its timeline.</p>
           </div>
         ) : (
-          <ExperimentChart series={readings.series} events={orderedEvents} />
+          <ExperimentChart
+            series={readings.series}
+            events={orderedEvents}
+            timelineStart={experiment.started_at!}
+            timelineEnd={experiment.ended_at ?? new Date().toISOString()}
+          />
         )}
 
         {emptyPoints.length > 0 && hasReadings && (
