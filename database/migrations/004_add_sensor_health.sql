@@ -67,9 +67,6 @@ FROM registered_sensor_health AS sensor_health
 LEFT JOIN latest_device_readings
     ON latest_device_readings.device_id = sensor_health.device_id;
 
-GRANT SELECT ON latest_temperature_readings TO anon;
-GRANT SELECT ON latest_temperature_readings TO authenticated;
-GRANT SELECT ON latest_temperature_readings TO service_role;
 GRANT SELECT ON sensor_health TO anon;
 GRANT SELECT ON sensor_health TO authenticated;
 GRANT SELECT ON sensor_health TO service_role;
