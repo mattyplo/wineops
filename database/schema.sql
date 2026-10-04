@@ -86,7 +86,7 @@ WHERE device_id IS NOT NULL;
 
 CREATE VIEW latest_temperature_readings AS
 SELECT DISTINCT ON (sensor_id)
-    id, sensor_id, temperature_c, recorded_at, reading_timestamp, device_id
+    id, sensor_id, temperature_c, recorded_at, reading_timestamp
 FROM temperature_readings
 ORDER BY sensor_id, recorded_at DESC, id DESC;
 

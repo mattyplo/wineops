@@ -17,10 +17,11 @@ begin with `005_...` and must be added as new migrations.
 
 `schema.sql` is a checked-in, human-readable current-state snapshot. It is a
 reference only, not a second schema authority or a file to edit for changes.
-After adding a migration, verify it against an appropriate clean/test database,
-refresh or verify `schema.sql`, and review both the migration and snapshot
-changes. Views are migration-managed; `views.sql` is no longer part of the
-workflow.
+Until an automated schema-dump workflow exists, define each change in a
+migration, then update `schema.sql` alongside it to reflect the resulting
+current state and verify both against an appropriate clean/test database.
+Review both the migration and snapshot changes. Views are migration-managed;
+`views.sql` is no longer part of the workflow.
 
 The migrations preserve separate physical sensors, monitoring points, and
 time-bounded sensor assignments. Experiments associate with monitoring points,

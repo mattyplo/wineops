@@ -30,8 +30,9 @@ is no longer part of the workflow.
 For every future schema change:
 
 1. Add a migration.
-2. Verify it against an appropriate clean/test database.
-3. Refresh or verify `schema.sql`.
+2. Until an automated schema-dump workflow exists, update `schema.sql`
+   alongside the migration to reflect the resulting current state.
+3. Verify both against an appropriate clean/test database.
 4. Review both the migration and snapshot changes.
 
 ## Tables
