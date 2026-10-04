@@ -1,41 +1,49 @@
 # Database
 
-The WineOps database schema is managed through SQL migrations.
+WineOps uses PostgreSQL through Supabase. SQL migrations in `migrations/` are
+the authoritative schema history; they are currently applied manually through
+the Supabase SQL editor.
 
-Currently migrations are applied manually through the Supabase SQL editor.
+## Migration baseline and order
 
-## Migration order
+The following reconstructed historical baseline can create a clean WineOps
+application database:
 
-``` text
-001_add_sensor_models.sql
-002_add_experiments.sql
-003_add_sensor_health.sql
+```text
+001_create_temperature_readings.sql
+002_add_sensor_models.sql
+003_add_experiments.sql
+004_add_sensor_health.sql
 ```
+
+The existing production database already contains this schema. Do not replay
+the reconstructed `001`–`004` baseline against production. Future production
+schema changes must continue with `005_...` migrations.
+
+## Schema snapshot and future workflow
+
+`schema.sql` is the checked-in, human-readable snapshot of the current state
+after the migrations. It is a reference, not a second schema authority and not
+the place to make schema changes. Views are migration-managed, so `views.sql`
+is no longer part of the workflow.
+
+For every future schema change:
+
+1. Add a migration.
+2. Verify it against an appropriate clean/test database.
+3. Refresh or verify `schema.sql`.
+4. Review both the migration and snapshot changes.
 
 ## Tables
 
-temperature_readings
-- Raw sensor measurements, including the nullable `device_id` used for new
-  Raspberry Pi reports. Historical rows remain unmapped when their source Pi
-  is unknown.
-
-sensors
-- Physical DS18B20 probes
-
-monitoring_points
-- Real-world things being monitored
-
-sensor_assignments
-- Historical relationship between sensors and monitoring points
-
-experiments
-- Experiment definitions and lifecycle
-
-experiment_monitoring_points
-- Monitoring points included in experiments
-
-experiment_events
-- Timestamped events that occur during experiments
+- `temperature_readings` — raw sensor measurements; nullable `device_id`
+  identifies new Raspberry Pi reports, while historical rows may be unmapped.
+- `sensors` — physical DS18B20 probes.
+- `monitoring_points` — real-world things being monitored.
+- `sensor_assignments` — time-bounded sensor/monitoring-point history.
+- `experiments` — experiment definitions and lifecycle.
+- `experiment_monitoring_points` — monitoring points included in experiments.
+- `experiment_events` — timestamped experiment events.
 
 ## Experiment Data Model
 
@@ -55,45 +63,10 @@ Experiment
 
 Experiments reference monitoring points rather than physical sensors because a monitoring point represents the real-world thing being observed, such as a fermenter or water bath. Physical sensors can be replaced or reassigned over time. Sensor assignments preserve that history, allowing an experiment to remain attached to the same monitored subject while readings are traced to whichever sensor was assigned at a given time.
 
-### experiments
-
-- `id` - UUID primary key
-- `name` - Required experiment name
-- `description` - Optional description
-- `hypothesis` - Optional hypothesis
-- `started_at` - Optional experiment start time
-- `ended_at` - Optional experiment end time; requires `started_at` and cannot be earlier than it
-- `created_at` - Creation time
-- `updated_at` - Last update time
-
-### experiment_monitoring_points
-
-- `id` - UUID primary key
-- `experiment_id` - Required reference to `experiments`; deleted with the experiment
-- `monitoring_point_id` - Required reference to `monitoring_points`
-- `created_at` - Creation time
-- `updated_at` - Last update time
-- Each monitoring point can be included only once per experiment
-
-### experiment_events
-
-- `id` - UUID primary key
-- `experiment_id` - Required reference to `experiments`; deleted with the experiment
-- `event_type` - Required event category
-- `description` - Required event description
-- `occurred_at` - Required time when the event occurred
-- `created_at` - Creation time
-- Events are indexed by experiment and occurrence time
-
 ## Views
 
-latest_temperature_readings
-- Latest reading per sensor
-
-sensor_health
-- Current health for registered sensors only, based on Supabase receipt time:
-  online under 30 minutes, stale from 30 through 60 minutes, and offline after
-  60 minutes. All sensor lifecycle states are included.
-- Device health is inferred from the latest successful reading from any sensor
-  with the same `device_id`; it cannot distinguish a failed Pi, network,
-  reporter, or simultaneous sensor failure without a heartbeat.
+- `latest_temperature_readings` — latest reading per sensor.
+- `sensor_health` — health for registered sensors only, based on Supabase
+  receipt time: online under 30 minutes, stale from 30 through 60 minutes, and
+  offline afterward. Device health uses the latest successful reading for any
+  sensor sharing a `device_id`; it is not a heartbeat.

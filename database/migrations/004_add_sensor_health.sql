@@ -8,7 +8,18 @@ CREATE INDEX temperature_readings_device_id_recorded_at_idx
 ON temperature_readings (device_id, recorded_at DESC, id DESC)
 WHERE device_id IS NOT NULL;
 
-CREATE OR REPLACE VIEW sensor_health AS
+CREATE OR REPLACE VIEW latest_temperature_readings AS
+SELECT DISTINCT ON (sensor_id)
+    id,
+    sensor_id,
+    temperature_c,
+    recorded_at,
+    reading_timestamp,
+    device_id
+FROM temperature_readings
+ORDER BY sensor_id, recorded_at DESC, id DESC;
+
+CREATE VIEW sensor_health AS
 WITH latest_sensor_readings AS (
     SELECT DISTINCT ON (temperature_readings.sensor_id)
         temperature_readings.id,
@@ -19,8 +30,7 @@ WITH latest_sensor_readings AS (
         temperature_readings.reading_timestamp
     FROM temperature_readings
     INNER JOIN sensors ON sensors.hardware_id = temperature_readings.sensor_id
-    ORDER BY
-        temperature_readings.sensor_id,
+    ORDER BY temperature_readings.sensor_id,
         temperature_readings.recorded_at DESC,
         temperature_readings.id DESC
 ),
@@ -68,6 +78,9 @@ FROM registered_sensor_health AS sensor_health
 LEFT JOIN latest_device_readings
     ON latest_device_readings.device_id = sensor_health.device_id;
 
+GRANT SELECT ON latest_temperature_readings TO anon;
+GRANT SELECT ON latest_temperature_readings TO authenticated;
+GRANT SELECT ON latest_temperature_readings TO service_role;
 GRANT SELECT ON sensor_health TO anon;
 GRANT SELECT ON sensor_health TO authenticated;
 GRANT SELECT ON sensor_health TO service_role;
