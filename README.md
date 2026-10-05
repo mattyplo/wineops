@@ -255,7 +255,8 @@ wineops/
 │
 ├── database/
 │   ├── README.md
-│   └── views.sql
+│   ├── migrations/
+│   └── schema.sql
 │
 └── README.md
 ```

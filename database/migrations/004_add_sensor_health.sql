@@ -8,7 +8,7 @@ CREATE INDEX temperature_readings_device_id_recorded_at_idx
 ON temperature_readings (device_id, recorded_at DESC, id DESC)
 WHERE device_id IS NOT NULL;
 
-CREATE OR REPLACE VIEW sensor_health AS
+CREATE VIEW sensor_health AS
 WITH latest_sensor_readings AS (
     SELECT DISTINCT ON (temperature_readings.sensor_id)
         temperature_readings.id,
@@ -19,8 +19,7 @@ WITH latest_sensor_readings AS (
         temperature_readings.reading_timestamp
     FROM temperature_readings
     INNER JOIN sensors ON sensors.hardware_id = temperature_readings.sensor_id
-    ORDER BY
-        temperature_readings.sensor_id,
+    ORDER BY temperature_readings.sensor_id,
         temperature_readings.recorded_at DESC,
         temperature_readings.id DESC
 ),
