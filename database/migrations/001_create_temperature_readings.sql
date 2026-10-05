@@ -8,6 +8,9 @@ CREATE TABLE temperature_readings (
 
 ALTER TABLE temperature_readings ENABLE ROW LEVEL SECURITY;
 
+REVOKE SELECT, UPDATE, DELETE ON temperature_readings FROM anon;
+REVOKE SELECT, INSERT, UPDATE, DELETE ON temperature_readings FROM authenticated;
+
 GRANT INSERT ON temperature_readings TO anon;
 GRANT SELECT, INSERT, UPDATE, DELETE ON temperature_readings TO service_role;
 

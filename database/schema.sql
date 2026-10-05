@@ -149,6 +149,9 @@ ON temperature_readings FOR INSERT TO anon WITH CHECK (true);
 CREATE POLICY "service role can insert temperature readings"
 ON temperature_readings FOR INSERT TO service_role WITH CHECK (true);
 
+REVOKE SELECT, UPDATE, DELETE ON temperature_readings FROM anon;
+REVOKE SELECT, INSERT, UPDATE, DELETE ON temperature_readings FROM authenticated;
+
 GRANT INSERT ON temperature_readings TO anon;
 GRANT SELECT, INSERT, UPDATE, DELETE ON temperature_readings TO service_role;
 GRANT SELECT ON latest_temperature_readings TO anon;
