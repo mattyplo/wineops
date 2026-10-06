@@ -11,8 +11,10 @@ import {
 } from "../src/services/experiments";
 import {
   ExperimentEvent,
+  ExperimentEventInput,
   ExperimentRecord,
   ExperimentSummary,
+  ExperimentInput,
   MonitoringPoint,
   ResolvedSensorAssignment,
   TemperatureReading,
@@ -56,6 +58,24 @@ function fixtureRepository(fixture: Fixture = {}): ExperimentRepository {
     },
     async findTemperatureReadings() {
       return fixture.readings ?? [];
+    },
+    async createExperiment(input) {
+      return { ...experiment, ...input, id: "created", created_at: experiment.created_at };
+    },
+    async updateExperiment(_experimentId, input) {
+      return { ...experiment, ...input };
+    },
+    async deleteExperiment() {
+      return true;
+    },
+    async createEvent(_experimentId, input) {
+      return { ...input, id: "created-event" };
+    },
+    async updateEvent(_experimentId, eventId, input) {
+      return { id: eventId, ...input };
+    },
+    async deleteEvent() {
+      return true;
     },
   };
 }
@@ -140,6 +160,117 @@ describe("temperature reading pagination", () => {
 });
 
 describe("experiment service", () => {
+  it("creates a planned experiment with no start time", async () => {
+    const created: ExperimentInput[] = [];
+    const repository = fixtureRepository();
+    repository.createExperiment = async (input) => {
+      created.push(input);
+      return { ...experiment, ...input, id: "created" };
+    };
+
+    const result = await createExperimentService(repository).createExperiment({
+      name: "2026 Cabernet Sauvignon",
+      description: null,
+      hypothesis: null,
+      started_at: null,
+      ended_at: null,
+    });
+
+    assert.equal(result.id, "created");
+    assert.deepEqual(created, [{
+      name: "2026 Cabernet Sauvignon",
+      description: null,
+      hypothesis: null,
+      started_at: null,
+      ended_at: null,
+    }]);
+  });
+
+  it("starts a planned experiment and ends an active experiment", async () => {
+    const updates: ExperimentInput[] = [];
+    const repository = fixtureRepository({
+      experiment: { ...experiment, started_at: null },
+    });
+    repository.updateExperiment = async (_id, input) => {
+      updates.push(input);
+      return { ...experiment, ...input };
+    };
+    const service = createExperimentService(repository);
+
+    await service.updateExperiment(experiment.id, {
+      started_at: "2026-10-05T16:00:00.000Z",
+    });
+    repository.findExperiment = async () => ({
+      ...experiment,
+      started_at: "2026-10-05T16:00:00.000Z",
+    });
+    await service.updateExperiment(experiment.id, {
+      ended_at: "2026-10-08T16:00:00.000Z",
+    });
+
+    assert.deepEqual(updates, [
+      { started_at: "2026-10-05T16:00:00.000Z" },
+      { ended_at: "2026-10-08T16:00:00.000Z" },
+    ]);
+  });
+
+  it("rejects an experiment end before its start", async () => {
+    const service = createExperimentService(fixtureRepository());
+    await assert.rejects(
+      service.updateExperiment(experiment.id, {
+        ended_at: "2026-07-20T05:50:00.000Z",
+      }),
+      /End time cannot be before start time/,
+    );
+  });
+
+  it("edits experiment metadata and deletes an experiment", async () => {
+    const repository = fixtureRepository();
+    const service = createExperimentService(repository);
+    const updated = await service.updateExperiment(experiment.id, {
+      name: "Updated trial",
+      description: "Updated description",
+      hypothesis: "Updated hypothesis",
+    });
+    await service.deleteExperiment(experiment.id);
+
+    assert.equal(updated.name, "Updated trial");
+  });
+
+  it("creates, edits, and deletes experiment events", async () => {
+    const repository = fixtureRepository();
+    const service = createExperimentService(repository);
+    const input: ExperimentEventInput = {
+      event_type: "yeast_pitched",
+      description: "Pitched yeast.",
+      occurred_at: "2026-07-21T06:00:00.000Z",
+    };
+
+    const created = await service.createEvent(experiment.id, input);
+    const updated = await service.updateEvent(experiment.id, created.id, {
+      ...input,
+      description: "Pitched yeast and nutrient.",
+    });
+    await service.deleteEvent(experiment.id, created.id);
+
+    assert.equal(updated.description, "Pitched yeast and nutrient.");
+  });
+
+  it("rejects event mutations for an unknown experiment", async () => {
+    const service = createExperimentService(
+      fixtureRepository({ experiment: null }),
+    );
+    const input: ExperimentEventInput = {
+      event_type: "pressed",
+      description: "Pressed fruit.",
+      occurred_at: "2026-07-21T06:00:00.000Z",
+    };
+
+    await assert.rejects(
+      service.createEvent("unknown", input),
+      ExperimentNotFoundError,
+    );
+  });
   it("lists experiments by created_at descending", async () => {
     const { hypothesis: _hypothesis, ...summary } = experiment;
     const older = { ...summary, id: "older" };

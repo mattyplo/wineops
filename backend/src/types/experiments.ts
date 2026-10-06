@@ -23,6 +23,22 @@ export interface ExperimentEvent {
   occurred_at: string;
 }
 
+export interface ExperimentInput {
+  name: string;
+  description: string | null;
+  hypothesis: string | null;
+  started_at: string | null;
+  ended_at: string | null;
+}
+
+export type ExperimentUpdate = Partial<ExperimentInput>;
+
+export interface ExperimentEventInput {
+  event_type: string;
+  description: string;
+  occurred_at: string;
+}
+
 export interface SensorAssignment {
   sensor_id: string;
   monitoring_point_id: string;

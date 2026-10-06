@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { act, cleanup, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import App from "./App";
 
@@ -245,6 +245,25 @@ describe("experiment route", () => {
     expect(screen.getAllByText(expected).length).toBeGreaterThan(0);
     await waitFor(() => expect(fetch).toHaveBeenCalledTimes(2));
   });
+
+  it("shows an API error when an event cannot be saved", async () => {
+    vi.spyOn(globalThis, "fetch").mockImplementation((input, init) => {
+      if (init?.method === "POST") return response({ error: "Event time is invalid" }, 400);
+      return String(input).endsWith("/readings")
+        ? response({ experiment_id: experiment.id, series: [] })
+        : response(experiment);
+    });
+    render(<App />);
+    await screen.findByRole("heading", { name: "Cold soak trial" });
+    fireEvent.click(screen.getByRole("button", { name: "Add event" }));
+    fireEvent.change(screen.getByLabelText("Event type"), { target: { value: "pressed" } });
+    fireEvent.change(screen.getByLabelText("Description"), { target: { value: "Pressed fruit." } });
+    fireEvent.change(screen.getByLabelText("Occurred at"), { target: { value: "2026-07-21T07:00" } });
+    const addEventButtons = screen.getAllByRole("button", { name: "Add event" });
+    fireEvent.click(addEventButtons[addEventButtons.length - 1]);
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("Event time is invalid");
+  });
 });
 
 describe("dashboard health", () => {
@@ -258,8 +277,11 @@ describe("dashboard health", () => {
   });
 
   it("displays online, stale, and offline sensor health from the backend", async () => {
-    vi.spyOn(globalThis, "fetch").mockResolvedValue(await response({
-      sensors: [
+    vi.spyOn(globalThis, "fetch").mockImplementation((input) => {
+      if (String(input).endsWith("/api/experiments")) {
+        return response({ experiments: [] });
+      }
+      return response({ sensors: [
         {
           sensor_id: "28-online",
           sensor_state: "INACTIVE",
@@ -293,8 +315,8 @@ describe("dashboard health", () => {
           device_last_seen_at: null,
           device_health_status: null,
         },
-      ],
-    }));
+      ] });
+    });
     render(<App />);
 
     expect(await screen.findByText("28-online")).toBeInTheDocument();
@@ -307,5 +329,41 @@ describe("dashboard health", () => {
     expect(fetch).toHaveBeenCalledWith(
       expect.stringMatching(/\/api\/sensors\/health$/),
     );
+  });
+
+  it("creates a planned experiment from the experiment list", async () => {
+    vi.spyOn(globalThis, "fetch").mockImplementation((input, init) => {
+      const url = String(input);
+      if (url.endsWith("/api/experiments") && init?.method === "POST") {
+        return response({
+          id: "new-experiment", name: "2026 Cabernet", description: null,
+          hypothesis: null, started_at: null, ended_at: null, created_at: "2026-10-05T00:00:00.000Z",
+        });
+      }
+      if (url.endsWith("/api/experiments")) return response({ experiments: [] });
+      return response({ sensors: [] });
+    });
+    render(<App />);
+
+    const name = await screen.findByLabelText("New experiment name");
+    fireEvent.change(name, { target: { value: "2026 Cabernet" } });
+    fireEvent.click(screen.getByRole("button", { name: "Create planned experiment" }));
+
+    expect(await screen.findByRole("status")).toHaveTextContent("Planned experiment created.");
+    expect(screen.getByRole("link", { name: "2026 Cabernet" })).toBeInTheDocument();
+    expect(fetch).toHaveBeenCalledWith(
+      expect.stringMatching(/\/api\/experiments$/),
+      expect.objectContaining({ method: "POST" }),
+    );
+  });
+
+  it("shows local experiment creation validation", async () => {
+    vi.spyOn(globalThis, "fetch").mockImplementation((input) =>
+      String(input).endsWith("/api/experiments") ? response({ experiments: [] }) : response({ sensors: [] }),
+    );
+    render(<App />);
+    await screen.findByLabelText("New experiment name");
+    fireEvent.click(screen.getByRole("button", { name: "Create planned experiment" }));
+    expect(screen.getByRole("alert")).toHaveTextContent("An experiment name is required.");
   });
 });

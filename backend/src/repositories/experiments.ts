@@ -1,8 +1,11 @@
 import { supabase } from "../clients/supabase";
 import {
   ExperimentEvent,
+  ExperimentEventInput,
+  ExperimentInput,
   ExperimentRecord,
   ExperimentSummary,
+  ExperimentUpdate,
   MonitoringPoint,
   ResolvedSensorAssignment,
   SensorAssignment,
@@ -15,6 +18,22 @@ export interface ExperimentRepository {
   findExperiment(experimentId: string): Promise<ExperimentRecord | null>;
   findMonitoringPoints(experimentId: string): Promise<MonitoringPoint[]>;
   findEvents(experimentId: string): Promise<ExperimentEvent[]>;
+  createExperiment(input: ExperimentInput): Promise<ExperimentRecord>;
+  updateExperiment(
+    experimentId: string,
+    input: ExperimentUpdate,
+  ): Promise<ExperimentRecord | null>;
+  deleteExperiment(experimentId: string): Promise<boolean>;
+  createEvent(
+    experimentId: string,
+    input: ExperimentEventInput,
+  ): Promise<ExperimentEvent>;
+  updateEvent(
+    experimentId: string,
+    eventId: string,
+    input: ExperimentEventInput,
+  ): Promise<ExperimentEvent | null>;
+  deleteEvent(experimentId: string, eventId: string): Promise<boolean>;
   findResolvedSensorAssignments(
     monitoringPointIds: string[],
     windowStart: string,
@@ -158,6 +177,70 @@ export const experimentRepository: ExperimentRepository = {
       .order("occurred_at", { ascending: true });
 
     return dataOrThrow(data, error) as ExperimentEvent[];
+  },
+
+  async createExperiment(input) {
+    const { data, error } = await supabase
+      .from("experiments")
+      .insert(input)
+      .select("id,name,description,hypothesis,started_at,ended_at,created_at")
+      .single();
+    return dataOrThrow(data, error) as ExperimentRecord;
+  },
+
+  async updateExperiment(experimentId, input) {
+    const { data, error } = await supabase
+      .from("experiments")
+      .update(input)
+      .eq("id", experimentId)
+      .select("id,name,description,hypothesis,started_at,ended_at,created_at")
+      .maybeSingle();
+    if (error) throw error;
+    return data as ExperimentRecord | null;
+  },
+
+  async deleteExperiment(experimentId) {
+    const { data, error } = await supabase
+      .from("experiments")
+      .delete()
+      .eq("id", experimentId)
+      .select("id")
+      .maybeSingle();
+    if (error) throw error;
+    return data !== null;
+  },
+
+  async createEvent(experimentId, input) {
+    const { data, error } = await supabase
+      .from("experiment_events")
+      .insert({ experiment_id: experimentId, ...input })
+      .select("id,event_type,description,occurred_at")
+      .single();
+    return dataOrThrow(data, error) as ExperimentEvent;
+  },
+
+  async updateEvent(experimentId, eventId, input) {
+    const { data, error } = await supabase
+      .from("experiment_events")
+      .update(input)
+      .eq("id", eventId)
+      .eq("experiment_id", experimentId)
+      .select("id,event_type,description,occurred_at")
+      .maybeSingle();
+    if (error) throw error;
+    return data as ExperimentEvent | null;
+  },
+
+  async deleteEvent(experimentId, eventId) {
+    const { data, error } = await supabase
+      .from("experiment_events")
+      .delete()
+      .eq("id", eventId)
+      .eq("experiment_id", experimentId)
+      .select("id")
+      .maybeSingle();
+    if (error) throw error;
+    return data !== null;
   },
 
   async findResolvedSensorAssignments(

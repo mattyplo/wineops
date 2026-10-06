@@ -3,6 +3,31 @@ export interface MonitoringPoint {
   name: string;
 }
 
+export interface ExperimentSummary {
+  id: string;
+  name: string;
+  description: string | null;
+  started_at: string | null;
+  ended_at: string | null;
+  created_at: string;
+}
+
+export interface ExperimentInput {
+  name: string;
+  description: string | null;
+  hypothesis: string | null;
+  started_at: string | null;
+  ended_at: string | null;
+}
+
+export type ExperimentUpdate = Partial<ExperimentInput>;
+
+export interface ExperimentEventInput {
+  event_type: string;
+  description: string;
+  occurred_at: string;
+}
+
 export interface ExperimentEvent {
   id: string;
   event_type: string;
@@ -20,6 +45,10 @@ export interface ExperimentDetail {
   created_at: string;
   monitoring_points: MonitoringPoint[];
   events: ExperimentEvent[];
+}
+
+export interface ExperimentRecord extends ExperimentSummary {
+  hypothesis: string | null;
 }
 
 export interface ExperimentReading {

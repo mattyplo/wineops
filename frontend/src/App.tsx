@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { getSensorHealth } from "./api/health";
 import SensorCard from "./components/SensorCard";
 import ExperimentPage from "./pages/ExperimentPage";
+import ExperimentList from "./components/ExperimentList";
 import type { SensorHealth } from "./types/health";
 
 import "./App.css";
@@ -73,6 +74,7 @@ function Dashboard() {
         )}
 
       </div>
+      <ExperimentList />
 
     </div>
   );
