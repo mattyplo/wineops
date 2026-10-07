@@ -44,6 +44,7 @@ export function buildApp(options: BuildAppOptions = {}) {
 
   app.register(cors, {
     origin: config.frontendUrl,
+    methods: ["GET", "HEAD", "POST", "PATCH", "DELETE"],
   });
 
   app.register(readingRoutes, {
