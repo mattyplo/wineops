@@ -4,9 +4,14 @@ import {
 } from "../repositories/experiments";
 import {
   ExperimentDetail,
+  ExperimentEvent,
+  ExperimentEventInput,
+  ExperimentInput,
   ExperimentReadingSeries,
   ExperimentReadings,
+  ExperimentRecord,
   ExperimentSummary,
+  ExperimentUpdate,
 } from "../types/experiments";
 
 export class ExperimentNotFoundError extends Error {
@@ -16,10 +21,40 @@ export class ExperimentNotFoundError extends Error {
   }
 }
 
+export class ExperimentEventNotFoundError extends Error {
+  constructor(eventId: string) {
+    super(`Experiment event ${eventId} not found`);
+    this.name = "ExperimentEventNotFoundError";
+  }
+}
+
+export class ExperimentValidationError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "ExperimentValidationError";
+  }
+}
+
 export interface ExperimentService {
   listExperiments(): Promise<{ experiments: ExperimentSummary[] }>;
   getExperiment(experimentId: string): Promise<ExperimentDetail>;
   getExperimentReadings(experimentId: string): Promise<ExperimentReadings>;
+  createExperiment(input: ExperimentInput): Promise<ExperimentRecord>;
+  updateExperiment(
+    experimentId: string,
+    input: ExperimentUpdate,
+  ): Promise<ExperimentRecord>;
+  deleteExperiment(experimentId: string): Promise<boolean>;
+  createEvent(
+    experimentId: string,
+    input: ExperimentEventInput,
+  ): Promise<ExperimentEvent>;
+  updateEvent(
+    experimentId: string,
+    eventId: string,
+    input: ExperimentEventInput,
+  ): Promise<ExperimentEvent>;
+  deleteEvent(experimentId: string, eventId: string): Promise<boolean>;
 }
 
 export function createExperimentService(
@@ -36,7 +71,64 @@ export function createExperimentService(
     return experiment;
   }
 
+  function validateTimeline(startedAt: string | null, endedAt: string | null) {
+    if (endedAt !== null && startedAt === null) {
+      throw new ExperimentValidationError("An end time requires a start time");
+    }
+    if (
+      startedAt !== null &&
+      endedAt !== null &&
+      Date.parse(endedAt) < Date.parse(startedAt)
+    ) {
+      throw new ExperimentValidationError("End time cannot be before start time");
+    }
+  }
+
   return {
+    async createExperiment(input) {
+      validateTimeline(input.started_at, input.ended_at);
+      return repository.createExperiment(input);
+    },
+
+    async updateExperiment(experimentId, input) {
+      const experiment = await requireExperiment(experimentId);
+      validateTimeline(
+        input.started_at === undefined ? experiment.started_at : input.started_at,
+        input.ended_at === undefined ? experiment.ended_at : input.ended_at,
+      );
+      const updated = await repository.updateExperiment(experimentId, input);
+      if (!updated) throw new ExperimentNotFoundError(experimentId);
+      return updated;
+    },
+
+    async deleteExperiment(experimentId) {
+      await requireExperiment(experimentId);
+      if (!(await repository.deleteExperiment(experimentId))) {
+        throw new ExperimentNotFoundError(experimentId);
+      }
+      return true;
+    },
+
+    async createEvent(experimentId, input) {
+      await requireExperiment(experimentId);
+      return repository.createEvent(experimentId, input);
+    },
+
+    async updateEvent(experimentId, eventId, input) {
+      await requireExperiment(experimentId);
+      const updated = await repository.updateEvent(experimentId, eventId, input);
+      if (!updated) throw new ExperimentEventNotFoundError(eventId);
+      return updated;
+    },
+
+    async deleteEvent(experimentId, eventId) {
+      await requireExperiment(experimentId);
+      if (!(await repository.deleteEvent(experimentId, eventId))) {
+        throw new ExperimentEventNotFoundError(eventId);
+      }
+      return true;
+    },
+
     async listExperiments() {
       const experiments = await repository.listExperiments();
       experiments.sort(

@@ -6,6 +6,7 @@ import {
 } from "../api/experiments";
 import ExperimentChart, { seriesColor } from "../components/ExperimentChart";
 import ExperimentEventTimeline from "../components/ExperimentEventTimeline";
+import ExperimentManagement from "../components/ExperimentManagement";
 import type {
   ExperimentDetail,
   ExperimentReadings,
@@ -36,6 +37,7 @@ export default function ExperimentPage({
   experimentId,
 }: ExperimentPageProps) {
   const [state, setState] = useState<PageState>({ status: "loading" });
+  const [refreshVersion, setRefreshVersion] = useState(0);
 
   useEffect(() => {
     let cancelled = false;
@@ -63,7 +65,7 @@ export default function ExperimentPage({
     return () => {
       cancelled = true;
     };
-  }, [experimentId]);
+  }, [experimentId, refreshVersion]);
 
   if (state.status === "loading") {
     return (
@@ -157,6 +159,12 @@ export default function ExperimentPage({
         <p className="eyebrow" id="hypothesis-heading">Hypothesis</p>
         <p>{experiment.hypothesis || "No hypothesis was recorded for this experiment."}</p>
       </section>
+
+      <ExperimentManagement
+        experiment={experiment}
+        onChanged={() => setRefreshVersion((version) => version + 1)}
+        onDeleted={() => { window.location.assign("/"); }}
+      />
 
       <section className="panel chart-section" aria-labelledby="temperature-heading">
         <div className="section-heading">
