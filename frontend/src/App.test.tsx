@@ -263,6 +263,80 @@ describe("experiment route", () => {
     fireEvent.click(addEventButtons[addEventButtons.length - 1]);
 
     expect(await screen.findByRole("alert")).toHaveTextContent("Event time is invalid");
+    expect(screen.getByLabelText("Event type")).toHaveValue("pressed");
+    expect(screen.getByLabelText("Description")).toHaveValue("Pressed fruit.");
+    expect(screen.getByLabelText("Occurred at")).toHaveValue("2026-07-21T07:00");
+  });
+
+  it("resets event editor values when switching to another event", async () => {
+    const laterEvent = {
+      id: "event-2",
+      event_type: "yeast_added",
+      description: "Added yeast.",
+      occurred_at: "2026-07-21T07:00:00.000Z",
+    };
+    mockRequests({ ...experiment, events: [experiment.events[0], laterEvent] });
+    render(<App />);
+    await screen.findByRole("heading", { name: "Cold soak trial" });
+
+    const editButtons = screen.getAllByRole("button", { name: "Edit" });
+    fireEvent.click(editButtons[0]);
+    expect(screen.getByLabelText("Event type")).toHaveValue("ice_added");
+    fireEvent.click(editButtons[1]);
+
+    expect(screen.getByLabelText("Event type")).toHaveValue("yeast_added");
+    expect(screen.getByLabelText("Description")).toHaveValue("Added yeast.");
+  });
+
+  it("disables conflicting controls while an event mutation is pending", async () => {
+    let completeRequest: (() => void) | undefined;
+    vi.spyOn(globalThis, "fetch").mockImplementation((input, init) => {
+      if (init?.method === "POST") {
+        return new Promise<Response>((resolve) => {
+          completeRequest = () => resolve(new Response(JSON.stringify({ ...experiment.events[0], id: "event-2" }), {
+            headers: { "Content-Type": "application/json" },
+          }));
+        });
+      }
+      return String(input).endsWith("/readings")
+        ? response({ experiment_id: experiment.id, series: [] })
+        : response(experiment);
+    });
+    render(<App />);
+    await screen.findByRole("heading", { name: "Cold soak trial" });
+    fireEvent.click(screen.getByRole("button", { name: "Add event" }));
+    fireEvent.change(screen.getByLabelText("Event type"), { target: { value: "pressed" } });
+    fireEvent.change(screen.getByLabelText("Description"), { target: { value: "Pressed fruit." } });
+    fireEvent.change(screen.getByLabelText("Occurred at"), { target: { value: "2026-07-21T07:00" } });
+    const addEventButtons = screen.getAllByRole("button", { name: "Add event" });
+    fireEvent.click(addEventButtons[addEventButtons.length - 1]);
+
+    await waitFor(() => expect(screen.getByRole("button", { name: "Edit details" })).toBeDisabled());
+    expect(screen.getByRole("button", { name: "End experiment" })).toBeDisabled();
+    expect(screen.getAllByRole("button", { name: "Add event" })[0]).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Edit" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Delete" })).toBeDisabled();
+
+    completeRequest?.();
+    expect(await screen.findByRole("status")).toHaveTextContent("Event added.");
+  });
+
+  it("closes a completed lifecycle form after a successful update", async () => {
+    vi.spyOn(globalThis, "fetch").mockImplementation((input, init) => {
+      if (init?.method === "PATCH") return response({ ...experiment, ended_at: "2026-07-21T08:00:00.000Z" });
+      return String(input).endsWith("/readings")
+        ? response({ experiment_id: experiment.id, series: [] })
+        : response(experiment);
+    });
+    render(<App />);
+    await screen.findByRole("heading", { name: "Cold soak trial" });
+    fireEvent.click(screen.getByRole("button", { name: "End experiment" }));
+    fireEvent.change(screen.getByLabelText("Actual end time"), { target: { value: "2026-07-21T08:00" } });
+    const endExperimentButtons = screen.getAllByRole("button", { name: "End experiment" });
+    fireEvent.click(endExperimentButtons[endExperimentButtons.length - 1]);
+
+    expect(await screen.findByRole("status")).toHaveTextContent("Experiment ended.");
+    expect(screen.queryByLabelText("Actual end time")).not.toBeInTheDocument();
   });
 });
 

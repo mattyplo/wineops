@@ -34,9 +34,9 @@ export default function ExperimentManagement({ experiment, onChanged, onDeleted 
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
-  async function run(action: () => Promise<unknown>, success: string) {
+  async function run(action: () => Promise<unknown>, success: string, afterSuccess?: () => void) {
     setSaving(true); setError(null); setMessage(null);
-    try { await action(); setMessage(success); onChanged(); }
+    try { await action(); setMessage(success); afterSuccess?.(); onChanged(); }
     catch (reason) { setError(reason instanceof ApiError ? reason.message : "Unable to save changes."); }
     finally { setSaving(false); }
   }
@@ -55,7 +55,11 @@ export default function ExperimentManagement({ experiment, onChanged, onDeleted 
     event.preventDefault();
     const value = String(new FormData(event.currentTarget).get(field));
     if (!value) { setError("Choose a timestamp before saving."); return; }
-    void run(() => updateExperiment(experiment.id, { [field]: toIso(value) }), field === "started_at" ? "Experiment started." : "Experiment ended.");
+    void run(
+      () => updateExperiment(experiment.id, { [field]: toIso(value) }),
+      field === "started_at" ? "Experiment started." : "Experiment ended.",
+      () => setTimeAction(null),
+    );
   }
 
   function saveEvent(event: FormEvent<HTMLFormElement>) {
@@ -77,8 +81,8 @@ export default function ExperimentManagement({ experiment, onChanged, onDeleted 
     void run(
       () => editingEvent ? updateExperimentEvent(experiment.id, editingEvent.id, input) : createExperimentEvent(experiment.id, input),
       editingEvent ? "Event updated." : "Event added.",
+      () => { setEventOpen(false); setEditingEvent(null); },
     );
-    setEventOpen(false); setEditingEvent(null);
   }
 
   function removeExperiment() {
@@ -94,10 +98,10 @@ export default function ExperimentManagement({ experiment, onChanged, onDeleted 
   return <section className="panel management-panel" aria-labelledby="manage-heading">
     <div className="section-heading"><div><p className="eyebrow">Manage</p><h2 id="manage-heading">Experiment actions</h2></div></div>
     <div className="action-row">
-      <button type="button" onClick={() => setMetadataOpen(!metadataOpen)}>Edit details</button>
-      {!experiment.started_at && <button type="button" onClick={() => setTimeAction("started_at")}>Start experiment</button>}
-      {experiment.started_at && !experiment.ended_at && <button type="button" onClick={() => setTimeAction("ended_at")}>End experiment</button>}
-      <button type="button" className="danger-button" onClick={removeExperiment}>Delete experiment</button>
+      <button type="button" disabled={saving} onClick={() => setMetadataOpen(!metadataOpen)}>Edit details</button>
+      {!experiment.started_at && <button type="button" disabled={saving} onClick={() => setTimeAction("started_at")}>Start experiment</button>}
+      {experiment.started_at && !experiment.ended_at && <button type="button" disabled={saving} onClick={() => setTimeAction("ended_at")}>End experiment</button>}
+      <button type="button" className="danger-button" disabled={saving} onClick={removeExperiment}>Delete experiment</button>
     </div>
     {metadataOpen && <form className="management-form" onSubmit={saveMetadata}>
       <label>Name<input name="name" required defaultValue={experiment.name} /></label>
@@ -107,14 +111,14 @@ export default function ExperimentManagement({ experiment, onChanged, onDeleted 
     </form>}
     {timeAction === "started_at" && <form className="compact-form" onSubmit={(event) => saveTime("started_at", event)}><label>Actual start time<input name="started_at" type="datetime-local" required /></label><button disabled={saving}>Start experiment</button></form>}
     {timeAction === "ended_at" && <form className="compact-form" onSubmit={(event) => saveTime("ended_at", event)}><label>Actual end time<input name="ended_at" type="datetime-local" required /></label><button disabled={saving}>End experiment</button></form>}
-    <div className="section-heading event-actions"><h3>Events</h3><button type="button" onClick={() => { setEditingEvent(null); setEventOpen(!eventOpen); }}>Add event</button></div>
-    {eventOpen && <form className="management-form" onSubmit={saveEvent}>
+    <div className="section-heading event-actions"><h3>Events</h3><button type="button" disabled={saving} onClick={() => { setEditingEvent(null); setEventOpen(!eventOpen); }}>Add event</button></div>
+    {eventOpen && <form key={editingEvent?.id ?? "new-event"} className="management-form" onSubmit={saveEvent}>
       <label>Event type<input name="event_type" required defaultValue={editingEvent?.event_type ?? ""} /></label>
       <label>Description<input name="event_description" required defaultValue={editingEvent?.description ?? ""} /></label>
       <label>Occurred at<input name="occurred_at" type="datetime-local" required defaultValue={localDateTime(editingEvent?.occurred_at ?? null)} /></label>
       <button disabled={saving}>{editingEvent ? "Save event" : "Add event"}</button>
     </form>}
-    <ul className="event-management-list">{experiment.events.map((item) => <li key={item.id}><span>{item.event_type}</span><button type="button" onClick={() => { setEditingEvent(item); setEventOpen(true); }}>Edit</button><button type="button" className="danger-button" onClick={() => removeEvent(item)}>Delete</button></li>)}</ul>
+    <ul className="event-management-list">{experiment.events.map((item) => <li key={item.id}><span>{item.event_type}</span><button type="button" disabled={saving} onClick={() => { setEditingEvent(item); setEventOpen(true); }}>Edit</button><button type="button" className="danger-button" disabled={saving} onClick={() => removeEvent(item)}>Delete</button></li>)}</ul>
     {error && <p className="form-error" role="alert">{error}</p>}
     {message && <p className="form-success" role="status">{message}</p>}
   </section>;
