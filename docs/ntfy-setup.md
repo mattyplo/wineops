@@ -32,9 +32,3 @@ Verify that a notification appears on the phone. The `Click` header provides a r
 Use a descriptive WineOps prefix and a random, hard-to-guess suffix, for example `wineops-temperature-<random-suffix>`. Keep the exact string identical in publisher configuration and mobile subscriptions. There is no need for a formal taxonomy yet.
 
 **Security:** Public ntfy topics are not authenticated or private simply because the name is obscure. Someone who learns or guesses the name may be able to subscribe or publish. Do not include secrets, identifying information, or sensitive operational details in notification bodies. Use a longer cryptographically random suffix for continued use; rotate the topic and update all subscribers/publishers if it becomes exposed. For production-grade confidentiality or access control, evaluate authenticated/self-hosted ntfy later.
-
-## Scope and next work
-
-Issue #18 validates a push channel only; no WineOps backend integration or automated alert evaluation is included.
-
-Next: add server-side temperature threshold evaluation for incoming sensor readings, send an initial notification and at most one follow-up if still out of range after at least 15 minutes, suppress further reminders until recovery, and link alerts to the dashboard. Sensor-health alerts and acknowledgment/muting workflows follow separately.
