@@ -2,7 +2,7 @@
 --
 -- Migrations in migrations/ are the source of truth for schema evolution.
 -- This file is a human-readable reference for the state after migrations
--- 001 through 004; do not make schema changes by editing this snapshot.
+-- 001 through 005; do not make schema changes by editing this snapshot.
 -- It is not an executable replacement for the migration history.
 
 CREATE EXTENSION IF NOT EXISTS pgcrypto;
@@ -14,6 +14,16 @@ CREATE TABLE temperature_readings (
     recorded_at timestamptz NOT NULL DEFAULT now(),
     reading_timestamp timestamptz,
     device_id text
+);
+
+CREATE TABLE temperature_alert_deliveries (
+    id bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    rule_key text NOT NULL,
+    temperature_reading_id bigint NOT NULL REFERENCES temperature_readings(id),
+    status text NOT NULL CHECK (status IN ('claimed', 'sent', 'failed')),
+    created_at timestamptz NOT NULL DEFAULT now(),
+    sent_at timestamptz,
+    UNIQUE (rule_key)
 );
 
 CREATE TABLE sensors (
@@ -136,6 +146,7 @@ LEFT JOIN latest_device_readings
     ON latest_device_readings.device_id = sensor_health.device_id;
 
 ALTER TABLE temperature_readings ENABLE ROW LEVEL SECURITY;
+ALTER TABLE temperature_alert_deliveries ENABLE ROW LEVEL SECURITY;
 ALTER TABLE sensors ENABLE ROW LEVEL SECURITY;
 ALTER TABLE monitoring_points ENABLE ROW LEVEL SECURITY;
 ALTER TABLE sensor_assignments ENABLE ROW LEVEL SECURITY;
@@ -154,6 +165,8 @@ REVOKE SELECT, INSERT, UPDATE, DELETE ON temperature_readings FROM authenticated
 
 GRANT INSERT ON temperature_readings TO anon;
 GRANT SELECT, INSERT, UPDATE, DELETE ON temperature_readings TO service_role;
+GRANT SELECT, INSERT, UPDATE ON temperature_alert_deliveries TO service_role;
+GRANT USAGE, SELECT ON SEQUENCE temperature_alert_deliveries_id_seq TO service_role;
 GRANT SELECT ON latest_temperature_readings TO anon;
 GRANT SELECT ON latest_temperature_readings TO authenticated;
 GRANT SELECT ON latest_temperature_readings TO service_role;

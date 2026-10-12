@@ -188,6 +188,9 @@ SUPABASE_KEY
 FRONTEND_URL
 ```
 
+The temperature-notification proof of concept and its separate Render Cron Job
+are documented in [docs/temperature-alert-poc.md](docs/temperature-alert-poc.md).
+
 ## Database
 
 Hosted on:
