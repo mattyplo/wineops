@@ -4,6 +4,7 @@ set -Eeuo pipefail
 
 readonly TEST_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 readonly PI_DIR="$(cd -- "${TEST_DIR}/.." && pwd)"
+readonly REAL_PYTHON="$(command -v python3)"
 
 PASS=0
 FAIL=0
@@ -177,6 +178,20 @@ test_dependency_failure_preserves_active_virtualenv() {
   else fail 'dependency failure preserves the active virtual environment'; fi
 }
 
+test_virtualenv_activation_preserves_console_scripts() {
+  new_fixture
+  : >"${FIXTURE}/pi/temp_sensor/requirements.txt"
+  if (
+    source "${FIXTURE}/pi/setup.sh"
+    python3() { "${REAL_PYTHON}" "$@"; }
+    export PIP_NO_INDEX=1
+    setup_virtualenv
+    "${VENV_DIR}/bin/pip" --version >/dev/null
+  ); then
+    pass 'activated virtual environment keeps console scripts runnable'
+  else fail 'activated virtual environment keeps console scripts runnable'; fi
+}
+
 test_invalid_configuration_is_rejected_before_update() {
   local invalid_entry
   for invalid_entry in \
@@ -242,16 +257,32 @@ test_systemd_failure_shows_status() {
   else fail 'failed restart reports service status'; fi
 }
 
+test_service_failure_preserves_previous_virtualenv() {
+  new_fixture
+  write_legacy_config
+  mkdir -p "${FIXTURE}/pi/temp_sensor/venv/bin"
+  cp "${FIXTURE}/bin/python" "${FIXTURE}/pi/temp_sensor/venv/bin/python"
+  chmod +x "${FIXTURE}/pi/temp_sensor/venv/bin/python"
+  : >"${FIXTURE}/pi/temp_sensor/venv/known-dependency"
+  export WINEOPS_TEST_SYSTEMD_FAIL=true
+  if ! run_setup --update --non-interactive &&
+     [[ -f "${FIXTURE}/pi/temp_sensor/venv.previous/known-dependency" ]]; then
+    pass 'service failure preserves the previous virtual environment'
+  else fail 'service failure preserves the previous virtual environment'; fi
+}
+
 test_legacy_configuration_reconciles_only_device_id
 test_noninteractive_reports_missing_values_without_modifying_config
 test_repeated_updates_are_idempotent
 test_dependency_failure_does_not_restart_reporter
 test_dependency_failure_preserves_active_virtualenv
+test_virtualenv_activation_preserves_console_scripts
 test_invalid_configuration_is_rejected_before_update
 test_successful_update_restarts_and_checks_reporter
 test_git_failure_does_not_run_setup_or_restart_reporter
 test_successful_update_wrapper_updates_then_restarts_reporter
 test_systemd_failure_shows_status
+test_service_failure_preserves_previous_virtualenv
 
 printf '%s passed, %s failed\n' "${PASS}" "${FAIL}"
 ((FAIL == 0))

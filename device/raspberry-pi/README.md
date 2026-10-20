@@ -113,6 +113,22 @@ the package, network, or disk-space error shown by the update, then rerun
 `./device/raspberry-pi/update.sh`; do not manually modify the active virtual
 environment.
 
+The active `temp_sensor/venv` path is a symlink to the completed environment;
+the environment itself is never moved after Python creates it. The previous
+environment is retained as `temp_sensor/venv.previous` until the systemd
+restart succeeds. If the restart fails and reverting the Python environment is
+appropriate after diagnosing the service error, run this from the repository
+root, then restart the service:
+
+```bash
+rm device/raspberry-pi/temp_sensor/venv
+mv device/raspberry-pi/temp_sensor/venv.previous device/raspberry-pi/temp_sensor/venv
+sudo systemctl restart wineops-reporter.service
+```
+
+Do not start another update while `venv.previous` exists: either use this
+recovery path or remove it only after confirming the new environment is sound.
+
 Initial setup remains separate: use `./device/raspberry-pi/setup.sh` for a new
 Pi, and use `./device/raspberry-pi/setup.sh --reconfigure` only when you
 intend to replace configuration values.

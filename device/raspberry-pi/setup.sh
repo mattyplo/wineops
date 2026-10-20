@@ -17,6 +17,7 @@ UPDATE=false
 NON_INTERACTIVE=false
 SKIP_SYSTEMD="${WINEOPS_SKIP_SYSTEMD:-false}"
 DETECTED_SENSORS=()
+PREVIOUS_VENV_PATH=""
 
 usage() {
   cat <<'EOF'
@@ -380,15 +381,29 @@ setup_virtualenv() {
     die "Dependency installation failed. The active virtual environment was left unchanged; resolve the dependency problem and rerun the update."
   fi
 
-  previous_venv="${VENV_DIR}.previous.$$"
-  if [[ -e "${VENV_DIR}" ]]; then
+  previous_venv="${VENV_DIR}.previous"
+  if [[ -e "${previous_venv}" || -L "${previous_venv}" ]]; then
+    die "A previous virtual environment is awaiting recovery at ${previous_venv}. Restore or remove it before updating again."
+  fi
+  if [[ -e "${VENV_DIR}" || -L "${VENV_DIR}" ]]; then
+    PREVIOUS_VENV_PATH="$(cd -P "${VENV_DIR}" && pwd)"
     mv -- "${VENV_DIR}" "${previous_venv}"
   fi
-  if ! mv -- "${staged_venv}" "${VENV_DIR}"; then
+  if ! ln -s "$(basename -- "${staged_venv}")" "${VENV_DIR}"; then
     [[ ! -e "${previous_venv}" ]] || mv -- "${previous_venv}" "${VENV_DIR}"
     die "Unable to activate the updated virtual environment. The previous environment was restored."
   fi
+}
+
+discard_previous_virtualenv() {
+  local previous_venv="${VENV_DIR}.previous"
+
+  [[ -e "${previous_venv}" || -L "${previous_venv}" ]] || return 0
   rm -rf -- "${previous_venv}"
+  if [[ "${PREVIOUS_VENV_PATH}" == "${SENSOR_APP_DIR}/.venv-update."* ]]; then
+    rm -rf -- "${PREVIOUS_VENV_PATH}"
+  fi
+  PREVIOUS_VENV_PATH=""
 }
 
 escape_sed_replacement() {
@@ -481,6 +496,7 @@ main() {
   configure_environment
   setup_virtualenv
   install_service
+  discard_previous_virtualenv
   show_summary
 }
 
