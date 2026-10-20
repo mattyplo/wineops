@@ -17,4 +17,7 @@ ls /sys/bus/w1/devices/
 cat /sys/bus/w1/devices/28-*/w1_slave
 ```
 
-There is no automated device test suite in this repository. On a Pi, run `./setup.sh --help` to inspect the supported interface and follow the README's service-status and journal checks after installation.
+Run `bash test/update_test.sh` after changing Pi setup or update behavior. The
+shell test uses temporary directories and command stubs; on a Pi, also run
+`./setup.sh --help` and follow the README's service-status and journal checks
+after installation.

@@ -63,17 +63,75 @@ On its first run, the script prompts for:
 Configuration is stored in `~/.supabase_env` with permissions `600`. An
 existing file is preserved during normal setup runs.
 
-## Updating
-
-Pull the latest device files and rerun setup:
+The supported configuration format permits blank lines and `#` comments, plus
+one non-empty, quoted assignment for each of `SUPABASE_URL`, `SUPABASE_KEY`,
+`DEVICE_ID`, and `SENSORS`. For example:
 
 ```bash
-git pull
-./device/raspberry-pi/setup.sh
+SUPABASE_URL='https://example.supabase.co'
+SUPABASE_KEY='your-key'
+DEVICE_ID='pi-cellar-1'
+SENSORS='28-000001'
 ```
 
-Rerunning setup preserves `~/.supabase_env`, updates Python dependencies,
-updates the service definition, and restarts the reporter.
+Updates reject empty values, duplicate assignments, and unsupported entries
+instead of appending a conflicting setting. Use `--reconfigure` to replace an
+invalid configuration deliberately.
+
+## Updating
+
+For an existing installation, run the dedicated update script from the
+repository root:
+
+```bash
+./device/raspberry-pi/update.sh
+```
+
+It retains the sparse-checkout configuration and uses `git pull --ff-only`,
+then updates Python dependencies and the rendered service. It preserves all
+existing values in `~/.supabase_env`, including Supabase credentials and sensor
+IDs. When a newly required value is missing, it derives a valid `DEVICE_ID`
+from the Pi hostname when possible; otherwise it prompts only for the missing
+value. The file mode is preserved when configuration is reconciled.
+
+For automation, prevent prompts and receive a list of missing setting names:
+
+```bash
+./device/raspberry-pi/update.sh --non-interactive
+```
+
+The reporter is restarted only after the Git update, configuration check,
+dependency installation, and service installation all succeed. If `git pull`
+succeeds but a later step fails, the working tree may contain the new code but
+the running reporter is not restarted; resolve the reported failure and rerun
+the update. A failed restart prints service status for diagnosis.
+
+Dependencies are built in a temporary virtual environment and replace the
+active environment only after installation succeeds. If dependency installation
+fails, the active environment and running reporter are left unchanged. Resolve
+the package, network, or disk-space error shown by the update, then rerun
+`./device/raspberry-pi/update.sh`; do not manually modify the active virtual
+environment.
+
+The active `temp_sensor/venv` path is a symlink to the completed environment;
+the environment itself is never moved after Python creates it. The previous
+environment is retained as `temp_sensor/venv.previous` until the systemd
+restart succeeds. If the restart fails and reverting the Python environment is
+appropriate after diagnosing the service error, run this from the repository
+root, then restart the service:
+
+```bash
+rm device/raspberry-pi/temp_sensor/venv
+mv device/raspberry-pi/temp_sensor/venv.previous device/raspberry-pi/temp_sensor/venv
+sudo systemctl restart wineops-reporter.service
+```
+
+Do not start another update while `venv.previous` exists: either use this
+recovery path or remove it only after confirming the new environment is sound.
+
+Initial setup remains separate: use `./device/raspberry-pi/setup.sh` for a new
+Pi, and use `./device/raspberry-pi/setup.sh --reconfigure` only when you
+intend to replace configuration values.
 
 The reporter installs the exact versions in
 [`temp_sensor/requirements.txt`](temp_sensor/requirements.txt). Direct
