@@ -185,6 +185,43 @@ configuration_value() {
   sed -n "s/^${name}=['\"]\\{0,1\\}\\([^'\"]*\\)['\"]\\{0,1\\}$/\\1/p" "${ENV_FILE}" | tail -n 1
 }
 
+validate_existing_environment() {
+  local line
+  local line_number=0
+  local name
+  local value
+  local seen_names=()
+
+  while IFS= read -r line || [[ -n "${line}" ]]; do
+    line_number=$((line_number + 1))
+    [[ -z "${line}" || "${line}" == \#* ]] && continue
+
+    if [[ "${line}" =~ ^([A-Z_][A-Z0-9_]*)= ]]; then
+      name="${BASH_REMATCH[1]}"
+      value="${line#*=}"
+    else
+      die "Unsupported or invalid configuration entry on line ${line_number} in ${ENV_FILE}."
+    fi
+
+    if [[ ${#value} -lt 2 ||
+      ( "${value:0:1}" != "'" && "${value:0:1}" != '"' ) ||
+      "${value: -1}" != "${value:0:1}" ||
+      -z "${value:1:${#value}-2}" ]]; then
+      die "Unsupported or invalid configuration entry on line ${line_number} in ${ENV_FILE}."
+    fi
+
+    case "${name}" in
+      SUPABASE_URL|SUPABASE_KEY|DEVICE_ID|SENSORS) ;;
+      *) die "Unsupported or invalid configuration entry on line ${line_number} in ${ENV_FILE}." ;;
+    esac
+
+    if ((${#seen_names[@]})) && [[ " ${seen_names[*]} " == *" ${name} "* ]]; then
+      die "Unsupported or invalid configuration entry on line ${line_number} in ${ENV_FILE}."
+    fi
+    seen_names+=("${name}")
+  done <"${ENV_FILE}"
+}
+
 append_configuration_values() {
   local additions=$1
   local temp_file
@@ -206,6 +243,8 @@ reconcile_existing_environment() {
   local host_name
   local device_id_resolved=false
   local unresolved_names=""
+
+  validate_existing_environment
 
   for name in SUPABASE_URL SUPABASE_KEY DEVICE_ID SENSORS; do
     [[ -n "$(configuration_value "${name}")" ]] || missing+=("${name}")
@@ -327,15 +366,29 @@ configure_environment() {
 }
 
 setup_virtualenv() {
+  local staged_venv
+  local previous_venv
+
   [[ -f "${REQUIREMENTS_FILE}" ]] || die "Requirements file not found: ${REQUIREMENTS_FILE}"
-  if [[ ! -x "${VENV_DIR}/bin/python" ]]; then
-    printf '\nCreating Python virtual environment...\n'
-    python3 -m venv "${VENV_DIR}"
-  else
-    printf '\nReusing Python virtual environment: %s\n' "${VENV_DIR}"
+  staged_venv="$(mktemp -d "${SENSOR_APP_DIR}/.venv-update.XXXXXX")"
+
+  printf '\nBuilding updated Python virtual environment...\n'
+  if ! python3 -m venv "${staged_venv}" ||
+     ! "${staged_venv}/bin/python" -m pip install --upgrade pip ||
+     ! "${staged_venv}/bin/python" -m pip install -r "${REQUIREMENTS_FILE}"; then
+    rm -rf -- "${staged_venv}"
+    die "Dependency installation failed. The active virtual environment was left unchanged; resolve the dependency problem and rerun the update."
   fi
-  "${VENV_DIR}/bin/python" -m pip install --upgrade pip
-  "${VENV_DIR}/bin/python" -m pip install -r "${REQUIREMENTS_FILE}"
+
+  previous_venv="${VENV_DIR}.previous.$$"
+  if [[ -e "${VENV_DIR}" ]]; then
+    mv -- "${VENV_DIR}" "${previous_venv}"
+  fi
+  if ! mv -- "${staged_venv}" "${VENV_DIR}"; then
+    [[ ! -e "${previous_venv}" ]] || mv -- "${previous_venv}" "${VENV_DIR}"
+    die "Unable to activate the updated virtual environment. The previous environment was restored."
+  fi
+  rm -rf -- "${previous_venv}"
 }
 
 escape_sed_replacement() {

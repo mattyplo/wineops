@@ -50,7 +50,10 @@ EOF
   cat >"${FIXTURE}/bin/python" <<'EOF'
 #!/usr/bin/env bash
 printf 'python %s\n' "$*" >>"${WINEOPS_TEST_LOG}"
-if [[ "${WINEOPS_TEST_PIP_FAIL:-false}" == true && "$*" == *'pip install -r'* ]]; then exit 1; fi
+if [[ "${WINEOPS_TEST_PIP_FAIL:-false}" == true && "$*" == *'pip install -r'* ]]; then
+  rm -f "$(dirname -- "$0")/../known-dependency"
+  exit 1
+fi
 exit 0
 EOF
   chmod +x "${FIXTURE}/bin/python3" "${FIXTURE}/bin/python"
@@ -90,6 +93,14 @@ EOF
   export WINEOPS_TEST_HOSTNAME=pi-01
 }
 
+actual_file_mode() {
+  if /usr/bin/stat --version >/dev/null 2>&1; then
+    /usr/bin/stat -c '%a' "$1"
+  else
+    /usr/bin/stat -f '%Lp' "$1"
+  fi
+}
+
 write_legacy_config() {
   cat >"${HOME}/.supabase_env" <<'EOF'
 SUPABASE_URL='https://example.supabase.co'
@@ -111,7 +122,7 @@ test_legacy_configuration_reconciles_only_device_id() {
     if assert_contains "SUPABASE_KEY='existing-secret'" "${HOME}/.supabase_env" &&
        assert_contains "SENSORS='28-000001'" "${HOME}/.supabase_env" &&
        assert_contains "DEVICE_ID='pi-legacy'" "${HOME}/.supabase_env" &&
-       [[ "$(stat -c '%a' "${HOME}/.supabase_env")" == 640 ]]; then
+       [[ "$(actual_file_mode "${HOME}/.supabase_env")" == 640 ]]; then
       pass 'legacy update preserves credentials, sensors, and file mode'
     else fail 'legacy update preserves credentials, sensors, and file mode'; fi
   else fail 'legacy update preserves credentials, sensors, and file mode'; fi
@@ -151,6 +162,40 @@ test_dependency_failure_does_not_restart_reporter() {
   else fail 'dependency failure leaves reporter running'; fi
 }
 
+test_dependency_failure_preserves_active_virtualenv() {
+  new_fixture
+  write_legacy_config
+  mkdir -p "${FIXTURE}/pi/temp_sensor/venv/bin"
+  cp "${FIXTURE}/bin/python" "${FIXTURE}/pi/temp_sensor/venv/bin/python"
+  chmod +x "${FIXTURE}/pi/temp_sensor/venv/bin/python"
+  : >"${FIXTURE}/pi/temp_sensor/venv/known-dependency"
+  export WINEOPS_TEST_PIP_FAIL=true
+  if ! run_setup --update --non-interactive &&
+     [[ -f "${FIXTURE}/pi/temp_sensor/venv/known-dependency" ]] &&
+     assert_not_contains 'systemctl restart' "${WINEOPS_TEST_LOG}"; then
+    pass 'dependency failure preserves the active virtual environment'
+  else fail 'dependency failure preserves the active virtual environment'; fi
+}
+
+test_invalid_configuration_is_rejected_before_update() {
+  local invalid_entry
+  for invalid_entry in \
+    "SENSORS='28-000001'" \
+    "UNSUPPORTED_SETTING='value'" \
+    "SUPABASE_KEY=''"; do
+    new_fixture
+    write_legacy_config
+    printf '%s\n' "${invalid_entry}" >>"${HOME}/.supabase_env"
+    if run_setup --update --non-interactive ||
+       ! assert_contains 'Unsupported or invalid configuration entry' "${FIXTURE}/output" ||
+       ! assert_not_contains 'systemctl restart' "${WINEOPS_TEST_LOG}"; then
+      fail 'invalid configuration is rejected before update'
+      return
+    fi
+  done
+  pass 'invalid configuration is rejected before update'
+}
+
 test_successful_update_restarts_and_checks_reporter() {
   new_fixture
   write_legacy_config
@@ -174,6 +219,18 @@ test_git_failure_does_not_run_setup_or_restart_reporter() {
   else fail 'Git failure is diagnosed without restarting reporter'; fi
 }
 
+test_successful_update_wrapper_updates_then_restarts_reporter() {
+  new_fixture
+  write_legacy_config
+  if "${FIXTURE}/pi/update.sh" --non-interactive >"${FIXTURE}/output" 2>&1 &&
+     assert_contains 'git -C ' "${WINEOPS_TEST_LOG}" &&
+     assert_contains 'pull --ff-only' "${WINEOPS_TEST_LOG}" &&
+     assert_contains 'python -m pip install -r' "${WINEOPS_TEST_LOG}" &&
+     assert_contains 'systemctl restart wineops-reporter.service' "${WINEOPS_TEST_LOG}"; then
+    pass 'update wrapper pulls, delegates setup, and restarts reporter'
+  else fail 'update wrapper pulls, delegates setup, and restarts reporter'; fi
+}
+
 test_systemd_failure_shows_status() {
   new_fixture
   write_legacy_config
@@ -189,8 +246,11 @@ test_legacy_configuration_reconciles_only_device_id
 test_noninteractive_reports_missing_values_without_modifying_config
 test_repeated_updates_are_idempotent
 test_dependency_failure_does_not_restart_reporter
+test_dependency_failure_preserves_active_virtualenv
+test_invalid_configuration_is_rejected_before_update
 test_successful_update_restarts_and_checks_reporter
 test_git_failure_does_not_run_setup_or_restart_reporter
+test_successful_update_wrapper_updates_then_restarts_reporter
 test_systemd_failure_shows_status
 
 printf '%s passed, %s failed\n' "${PASS}" "${FAIL}"

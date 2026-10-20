@@ -63,6 +63,21 @@ On its first run, the script prompts for:
 Configuration is stored in `~/.supabase_env` with permissions `600`. An
 existing file is preserved during normal setup runs.
 
+The supported configuration format permits blank lines and `#` comments, plus
+one non-empty, quoted assignment for each of `SUPABASE_URL`, `SUPABASE_KEY`,
+`DEVICE_ID`, and `SENSORS`. For example:
+
+```bash
+SUPABASE_URL='https://example.supabase.co'
+SUPABASE_KEY='your-key'
+DEVICE_ID='pi-cellar-1'
+SENSORS='28-000001'
+```
+
+Updates reject empty values, duplicate assignments, and unsupported entries
+instead of appending a conflicting setting. Use `--reconfigure` to replace an
+invalid configuration deliberately.
+
 ## Updating
 
 For an existing installation, run the dedicated update script from the
@@ -90,6 +105,13 @@ dependency installation, and service installation all succeed. If `git pull`
 succeeds but a later step fails, the working tree may contain the new code but
 the running reporter is not restarted; resolve the reported failure and rerun
 the update. A failed restart prints service status for diagnosis.
+
+Dependencies are built in a temporary virtual environment and replace the
+active environment only after installation succeeds. If dependency installation
+fails, the active environment and running reporter are left unchanged. Resolve
+the package, network, or disk-space error shown by the update, then rerun
+`./device/raspberry-pi/update.sh`; do not manually modify the active virtual
+environment.
 
 Initial setup remains separate: use `./device/raspberry-pi/setup.sh` for a new
 Pi, and use `./device/raspberry-pi/setup.sh --reconfigure` only when you
