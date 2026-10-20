@@ -65,15 +65,35 @@ existing file is preserved during normal setup runs.
 
 ## Updating
 
-Pull the latest device files and rerun setup:
+For an existing installation, run the dedicated update script from the
+repository root:
 
 ```bash
-git pull
-./device/raspberry-pi/setup.sh
+./device/raspberry-pi/update.sh
 ```
 
-Rerunning setup preserves `~/.supabase_env`, updates Python dependencies,
-updates the service definition, and restarts the reporter.
+It retains the sparse-checkout configuration and uses `git pull --ff-only`,
+then updates Python dependencies and the rendered service. It preserves all
+existing values in `~/.supabase_env`, including Supabase credentials and sensor
+IDs. When a newly required value is missing, it derives a valid `DEVICE_ID`
+from the Pi hostname when possible; otherwise it prompts only for the missing
+value. The file mode is preserved when configuration is reconciled.
+
+For automation, prevent prompts and receive a list of missing setting names:
+
+```bash
+./device/raspberry-pi/update.sh --non-interactive
+```
+
+The reporter is restarted only after the Git update, configuration check,
+dependency installation, and service installation all succeed. If `git pull`
+succeeds but a later step fails, the working tree may contain the new code but
+the running reporter is not restarted; resolve the reported failure and rerun
+the update. A failed restart prints service status for diagnosis.
+
+Initial setup remains separate: use `./device/raspberry-pi/setup.sh` for a new
+Pi, and use `./device/raspberry-pi/setup.sh --reconfigure` only when you
+intend to replace configuration values.
 
 The reporter installs the exact versions in
 [`temp_sensor/requirements.txt`](temp_sensor/requirements.txt). Direct
