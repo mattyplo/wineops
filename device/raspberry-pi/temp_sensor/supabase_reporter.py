@@ -61,6 +61,16 @@ def send_to_api(readings, device_id):
     response.raise_for_status()
     print(f"Submitted {len(readings)} reading(s): HTTP {response.status_code}")
 
+def log_submission_failure(device_id, readings, error):
+    measurement_times = [reading.get("reading_timestamp") for reading in readings]
+    first_measurement_at = min(measurement_times) if measurement_times else "unknown"
+    print(
+        "Reading submission failed: "
+        f"device_id={device_id} batch_size={len(readings)} "
+        f"first_measurement_at={first_measurement_at} "
+        f"error={type(error).__name__}"
+    )
+
 def main():
     sensors = get_sensor_ids()
     device_id = get_device_id()
@@ -85,9 +95,9 @@ def main():
                 send_to_api(readings, device_id)
             except requests.RequestException as e:
                 # Do not log the response body: it can include deployment details.
-                print(f"Reading submission failed: {type(e).__name__}")
+                log_submission_failure(device_id, readings, e)
             except Exception as e:
-                print(f"Reading submission failed: {e}")
+                log_submission_failure(device_id, readings, e)
     
         # wait 15 minutes
         time.sleep(15 * 60)

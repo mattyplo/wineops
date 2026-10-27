@@ -186,6 +186,13 @@ Example:
 
 ## Troubleshooting
 
+### API submission failures
+
+The reporter logs the device ID, batch size, earliest measurement time, and
+error type for a failed submission. It does not log the ingest token, request
+headers, or response body. There is no durable queue or automatic retry: a
+failed batch is not retained for later delivery.
+
 ### Sensor not detected
 
 Check:

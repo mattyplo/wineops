@@ -111,6 +111,16 @@ EOF
   chmod 640 "${HOME}/.supabase_env"
 }
 
+write_old_direct_supabase_config() {
+  cat >"${HOME}/.supabase_env" <<'EOF'
+SUPABASE_URL='https://example.supabase.co'
+SUPABASE_KEY='old-direct-write-key'
+DEVICE_ID='pi-old'
+SENSORS='28-000001'
+EOF
+  chmod 640 "${HOME}/.supabase_env"
+}
+
 run_setup() {
   "${FIXTURE}/pi/setup.sh" "$@" >"${FIXTURE}/output" 2>&1
 }
@@ -140,6 +150,31 @@ test_noninteractive_reports_missing_values_without_modifying_config() {
      assert_not_contains 'systemctl restart' "${WINEOPS_TEST_LOG}"; then
     pass 'noninteractive update reports missing configuration without disruption'
   else fail 'noninteractive update reports missing configuration without disruption'; fi
+}
+
+test_old_direct_supabase_configuration_fails_without_restarting_reporter() {
+  new_fixture
+  write_old_direct_supabase_config
+  cp "${HOME}/.supabase_env" "${FIXTURE}/before"
+  if ! run_setup --update --non-interactive &&
+     cmp -s "${FIXTURE}/before" "${HOME}/.supabase_env" &&
+     assert_contains 'Unsupported or invalid configuration entry' "${FIXTURE}/output" &&
+     assert_not_contains 'systemctl restart' "${WINEOPS_TEST_LOG}"; then
+    pass 'old direct-Supabase configuration fails without restarting reporter'
+  else fail 'old direct-Supabase configuration fails without restarting reporter'; fi
+}
+
+test_old_direct_supabase_configuration_recovers_with_reconfigure() {
+  new_fixture
+  write_old_direct_supabase_config
+  if printf 'https://api.example.test\nnew-ingest-token\npi-old\n28-000001\n' |
+       run_setup --update --reconfigure &&
+     assert_contains "WINEOPS_API_URL='https://api.example.test'" "${HOME}/.supabase_env" &&
+     assert_contains "WINEOPS_INGEST_TOKEN='new-ingest-token'" "${HOME}/.supabase_env" &&
+     assert_not_contains 'SUPABASE_KEY' "${HOME}/.supabase_env" &&
+     assert_contains 'systemctl restart wineops-reporter.service' "${WINEOPS_TEST_LOG}"; then
+    pass 'old direct-Supabase configuration reconfigures after explicit recovery'
+  else fail 'old direct-Supabase configuration reconfigures after explicit recovery'; fi
 }
 
 test_repeated_updates_are_idempotent() {
@@ -273,6 +308,8 @@ test_service_failure_preserves_previous_virtualenv() {
 
 test_legacy_configuration_reconciles_only_device_id
 test_noninteractive_reports_missing_values_without_modifying_config
+test_old_direct_supabase_configuration_fails_without_restarting_reporter
+test_old_direct_supabase_configuration_recovers_with_reconfigure
 test_repeated_updates_are_idempotent
 test_dependency_failure_does_not_restart_reporter
 test_dependency_failure_preserves_active_virtualenv

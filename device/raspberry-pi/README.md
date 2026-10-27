@@ -154,7 +154,13 @@ never accepted as command-line arguments.
 Existing installations that contain `SUPABASE_URL`/`SUPABASE_KEY` must use
 `--reconfigure` once to replace those direct-database credentials with
 `WINEOPS_API_URL` and `WINEOPS_INGEST_TOKEN`. Perform this only after the API
-deployment and database migration have been verified.
+deployment and database migration have been verified. A normal `--update`
+rejects that old format before changing the configuration, virtual environment,
+or systemd service, so the existing reporter is not stopped or restarted on
+that failure. After correcting the deployment prerequisites, run
+`./device/raspberry-pi/setup.sh --update --reconfigure`; it makes a timestamped
+backup of the old file before replacing it and restarts the reporter only after
+the complete setup succeeds.
 
 ## Service operation
 

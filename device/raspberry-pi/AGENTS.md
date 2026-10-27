@@ -21,3 +21,6 @@ Run `bash test/update_test.sh` after changing Pi setup or update behavior. The
 shell test uses temporary directories and command stubs; on a Pi, also run
 `./setup.sh --help` and follow the README's service-status and journal checks
 after installation.
+
+Run `python3 -m unittest temp_sensor/test/reporter_test.py` after changing the
+reporter; it stubs external Python dependencies and does not need Pi hardware.

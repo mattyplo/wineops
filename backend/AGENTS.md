@@ -14,4 +14,8 @@ npm run typecheck
 npm run build
 ```
 
+With a disposable, empty PostgreSQL database configured as
+`WINEOPS_TEST_DATABASE_URL`, also run `npm run test:database` to apply and
+verify the database migrations and ingestion RPC.
+
 Use `npm run dev` for local development. The root README lists the current public endpoints.
