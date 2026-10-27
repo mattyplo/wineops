@@ -40,6 +40,9 @@ WineOps currently supports:
             +---------+----------+
                       |
                       v
+                Fastify API
+                      |
+                      v
                 Supabase DB
                       |
                       v
@@ -53,8 +56,8 @@ WineOps currently supports:
 
 ## Data Flow
 1. Raspberry Pi reads DS18B20 sensor values
-2. Sensor collector sends readings to Supabase
-3. Fastify API exposes readings
+2. Sensor collector batches readings to the Fastify API
+3. Fastify validates and stores readings in Supabase, then exposes dashboard reads
 4. React dashboard displays current temperatures
 
 # Technology Stack
@@ -121,6 +124,8 @@ GET /health
 
 GET /api/readings/latest
 
+POST /api/readings
+
 GET /api/sensors/health
 
 GET /api/experiments
@@ -185,6 +190,7 @@ Environment variables:
 ```
 SUPABASE_URL
 SUPABASE_KEY
+WINEOPS_INGEST_TOKEN
 FRONTEND_URL
 ```
 

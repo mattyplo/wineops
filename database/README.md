@@ -14,11 +14,28 @@ application database:
 002_add_sensor_models.sql
 003_add_experiments.sql
 004_add_sensor_health.sql
+005_add_idempotent_reading_ingestion.sql
 ```
 
 The existing production database already contains this schema. Do not replay
 the reconstructed `001`–`004` baseline against production. Future production
 schema changes must continue with `005_...` migrations.
+
+## 005 API ingestion rollout
+
+Before applying `005`, confirm Fastify is configured with a Supabase
+**service-role** key. The migration adds `temperature_readings.reading_id` with
+a database UUID default, so existing direct Pi inserts keep working during the
+staged rollout. It creates a service-role-only `SECURITY DEFINER` RPC that
+validates ACTIVE registry sensors and atomically records a whole batch. Exact
+UUID replays succeed; a reused UUID with different durable data conflicts.
+
+After applying, verify the column has no nulls or duplicates and exercise the
+RPC using a service-role backend against an ACTIVE test sensor. Keep legacy
+anon INSERT available until every Pi has been migrated; revoke it and rotate
+Pi-held Supabase keys only as a separate, reviewed operational change. Roll
+back the API before dropping the RPC or UUID column—API-written rows rely on
+that identity.
 
 ## Schema snapshot and future workflow
 

@@ -2,7 +2,7 @@
 --
 -- Migrations in migrations/ are the source of truth for schema evolution.
 -- This file is a human-readable reference for the state after migrations
--- 001 through 004; do not make schema changes by editing this snapshot.
+-- 001 through 005; do not make schema changes by editing this snapshot.
 -- It is not an executable replacement for the migration history.
 
 CREATE EXTENSION IF NOT EXISTS pgcrypto;
@@ -13,7 +13,9 @@ CREATE TABLE temperature_readings (
     temperature_c real NOT NULL,
     recorded_at timestamptz NOT NULL DEFAULT now(),
     reading_timestamp timestamptz,
-    device_id text
+    device_id text,
+    reading_id uuid NOT NULL DEFAULT gen_random_uuid(),
+    UNIQUE (reading_id)
 );
 
 CREATE TABLE sensors (
@@ -160,3 +162,58 @@ GRANT SELECT ON latest_temperature_readings TO service_role;
 GRANT SELECT ON sensor_health TO anon;
 GRANT SELECT ON sensor_health TO authenticated;
 GRANT SELECT ON sensor_health TO service_role;
+
+CREATE FUNCTION ingest_temperature_readings(p_device_id text, p_readings jsonb)
+RETURNS TABLE(inserted_count integer, duplicate_count integer)
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = pg_catalog, public
+AS $$
+DECLARE requested_count integer; new_count integer;
+BEGIN
+    IF p_device_id IS NULL OR btrim(p_device_id) = '' OR
+       jsonb_typeof(p_readings) <> 'array' OR jsonb_array_length(p_readings) = 0 THEN
+        RAISE EXCEPTION 'invalid reading batch' USING ERRCODE = '22023';
+    END IF;
+    DROP TABLE IF EXISTS _wineops_requested_readings;
+    CREATE TEMP TABLE _wineops_requested_readings ON COMMIT DROP AS
+    SELECT (item->>'reading_id')::uuid AS reading_id,
+           item->>'sensor_id' AS sensor_id,
+           (item->>'temperature_c')::real AS temperature_c,
+           (item->>'reading_timestamp')::timestamptz AS reading_timestamp
+    FROM jsonb_array_elements(p_readings) AS item;
+    SELECT count(*) INTO requested_count FROM _wineops_requested_readings;
+    IF EXISTS (SELECT 1 FROM _wineops_requested_readings GROUP BY reading_id HAVING count(*) > 1) THEN
+        RAISE EXCEPTION 'reading_id conflict' USING ERRCODE = 'P0001';
+    END IF;
+    PERFORM 1 FROM sensors WHERE hardware_id IN (SELECT sensor_id FROM _wineops_requested_readings) FOR SHARE;
+    IF EXISTS (SELECT 1 FROM _wineops_requested_readings requested
+               LEFT JOIN sensors ON sensors.hardware_id = requested.sensor_id
+               WHERE sensors.hardware_id IS NULL OR sensors.state <> 'ACTIVE') THEN
+        RAISE EXCEPTION 'unknown or inactive sensor' USING ERRCODE = 'P0001';
+    END IF;
+    IF EXISTS (SELECT 1 FROM _wineops_requested_readings requested
+               INNER JOIN temperature_readings stored USING (reading_id)
+               WHERE stored.device_id IS DISTINCT FROM p_device_id
+                  OR stored.sensor_id IS DISTINCT FROM requested.sensor_id
+                  OR stored.temperature_c IS DISTINCT FROM requested.temperature_c
+                  OR stored.reading_timestamp IS DISTINCT FROM requested.reading_timestamp) THEN
+        RAISE EXCEPTION 'reading_id conflict' USING ERRCODE = 'P0001';
+    END IF;
+    INSERT INTO temperature_readings (reading_id, sensor_id, device_id, temperature_c, reading_timestamp)
+    SELECT reading_id, sensor_id, p_device_id, temperature_c, reading_timestamp
+    FROM _wineops_requested_readings ON CONFLICT (reading_id) DO NOTHING;
+    GET DIAGNOSTICS new_count = ROW_COUNT;
+    IF EXISTS (SELECT 1 FROM _wineops_requested_readings requested
+               INNER JOIN temperature_readings stored USING (reading_id)
+               WHERE stored.device_id IS DISTINCT FROM p_device_id
+                  OR stored.sensor_id IS DISTINCT FROM requested.sensor_id
+                  OR stored.temperature_c IS DISTINCT FROM requested.temperature_c
+                  OR stored.reading_timestamp IS DISTINCT FROM requested.reading_timestamp) THEN
+        RAISE EXCEPTION 'reading_id conflict' USING ERRCODE = 'P0001';
+    END IF;
+    RETURN QUERY SELECT new_count, requested_count - new_count;
+END;
+$$;
+
+REVOKE ALL ON FUNCTION ingest_temperature_readings(text, jsonb)
+FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION ingest_temperature_readings(text, jsonb) TO service_role;
