@@ -4,12 +4,12 @@ WineOps is an early-stage IoT fermentation-monitoring project for home winemakin
 
 ## Map
 
-- `device/raspberry-pi/` reads DS18B20 sensors and writes readings directly to Supabase.
+- `device/raspberry-pi/` reads DS18B20 sensors and sends each reading to Fastify.
 - `database/` holds the checked-in SQL migrations and the latest-reading view.
-- `backend/` is a Fastify API that reads Supabase data for clients.
+- `backend/` is a Fastify API that ingests and reads Supabase data for clients.
 - `frontend/` is the React/Vite dashboard and calls the backend API.
 
-The currently implemented data path is: Raspberry Pi → Supabase → Fastify API → React dashboard. Keep these existing boundaries explicit; the frontend does not query Supabase directly.
+The implemented data path is: Raspberry Pi → Fastify API → Supabase → Fastify API → React dashboard. Keep these existing boundaries explicit; the frontend does not query Supabase directly.
 
 ## Current domain facts
 

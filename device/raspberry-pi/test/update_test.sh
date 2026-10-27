@@ -104,8 +104,18 @@ actual_file_mode() {
 
 write_legacy_config() {
   cat >"${HOME}/.supabase_env" <<'EOF'
+WINEOPS_API_URL='https://api.example.test'
+WINEOPS_INGEST_TOKEN='existing-secret'
+SENSORS='28-000001'
+EOF
+  chmod 640 "${HOME}/.supabase_env"
+}
+
+write_old_direct_supabase_config() {
+  cat >"${HOME}/.supabase_env" <<'EOF'
 SUPABASE_URL='https://example.supabase.co'
-SUPABASE_KEY='existing-secret'
+SUPABASE_KEY='old-direct-write-key'
+DEVICE_ID='pi-old'
 SENSORS='28-000001'
 EOF
   chmod 640 "${HOME}/.supabase_env"
@@ -120,7 +130,7 @@ test_legacy_configuration_reconciles_only_device_id() {
   write_legacy_config
   export WINEOPS_TEST_HOSTNAME='invalid hostname'
   if printf 'pi-legacy\n' | run_setup --update; then
-    if assert_contains "SUPABASE_KEY='existing-secret'" "${HOME}/.supabase_env" &&
+    if assert_contains "WINEOPS_INGEST_TOKEN='existing-secret'" "${HOME}/.supabase_env" &&
        assert_contains "SENSORS='28-000001'" "${HOME}/.supabase_env" &&
        assert_contains "DEVICE_ID='pi-legacy'" "${HOME}/.supabase_env" &&
        [[ "$(actual_file_mode "${HOME}/.supabase_env")" == 640 ]]; then
@@ -140,6 +150,31 @@ test_noninteractive_reports_missing_values_without_modifying_config() {
      assert_not_contains 'systemctl restart' "${WINEOPS_TEST_LOG}"; then
     pass 'noninteractive update reports missing configuration without disruption'
   else fail 'noninteractive update reports missing configuration without disruption'; fi
+}
+
+test_old_direct_supabase_configuration_fails_without_restarting_reporter() {
+  new_fixture
+  write_old_direct_supabase_config
+  cp "${HOME}/.supabase_env" "${FIXTURE}/before"
+  if ! run_setup --update --non-interactive &&
+     cmp -s "${FIXTURE}/before" "${HOME}/.supabase_env" &&
+     assert_contains 'Unsupported or invalid configuration entry' "${FIXTURE}/output" &&
+     assert_not_contains 'systemctl restart' "${WINEOPS_TEST_LOG}"; then
+    pass 'old direct-Supabase configuration fails without restarting reporter'
+  else fail 'old direct-Supabase configuration fails without restarting reporter'; fi
+}
+
+test_old_direct_supabase_configuration_recovers_with_reconfigure() {
+  new_fixture
+  write_old_direct_supabase_config
+  if printf 'https://api.example.test\nnew-ingest-token\npi-old\n28-000001\n' |
+       run_setup --update --reconfigure &&
+     assert_contains "WINEOPS_API_URL='https://api.example.test'" "${HOME}/.supabase_env" &&
+     assert_contains "WINEOPS_INGEST_TOKEN='new-ingest-token'" "${HOME}/.supabase_env" &&
+     assert_not_contains 'SUPABASE_KEY' "${HOME}/.supabase_env" &&
+     assert_contains 'systemctl restart wineops-reporter.service' "${WINEOPS_TEST_LOG}"; then
+    pass 'old direct-Supabase configuration reconfigures after explicit recovery'
+  else fail 'old direct-Supabase configuration reconfigures after explicit recovery'; fi
 }
 
 test_repeated_updates_are_idempotent() {
@@ -197,7 +232,7 @@ test_invalid_configuration_is_rejected_before_update() {
   for invalid_entry in \
     "SENSORS='28-000001'" \
     "UNSUPPORTED_SETTING='value'" \
-    "SUPABASE_KEY=''"; do
+    "WINEOPS_INGEST_TOKEN=''"; do
     new_fixture
     write_legacy_config
     printf '%s\n' "${invalid_entry}" >>"${HOME}/.supabase_env"
@@ -273,6 +308,8 @@ test_service_failure_preserves_previous_virtualenv() {
 
 test_legacy_configuration_reconciles_only_device_id
 test_noninteractive_reports_missing_values_without_modifying_config
+test_old_direct_supabase_configuration_fails_without_restarting_reporter
+test_old_direct_supabase_configuration_recovers_with_reconfigure
 test_repeated_updates_are_idempotent
 test_dependency_failure_does_not_restart_reporter
 test_dependency_failure_preserves_active_virtualenv

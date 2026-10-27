@@ -12,11 +12,13 @@ import {
 } from "./routes/health";
 import { ExperimentService } from "./services/experiments";
 import { HealthService } from "./services/health";
+import { ReadingIngestionService } from "./services/readings";
 import { supabase } from "./clients/supabase";
 
 interface BuildAppOptions {
   experimentService?: ExperimentService;
   healthService?: HealthService;
+  readingIngestionService?: ReadingIngestionService;
   logger?: boolean;
 }
 
@@ -47,9 +49,11 @@ export function buildApp(options: BuildAppOptions = {}) {
     methods: ["GET", "HEAD", "POST", "PATCH", "DELETE"],
   });
 
-  app.register(readingRoutes, {
+  app.register(
+    readingRoutes(options.readingIngestionService), {
     prefix: "/api/readings",
-  });
+    },
+  );
 
   app.register(
     options.healthService

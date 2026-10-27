@@ -2,14 +2,16 @@ import requests
 import os
 import get_temp
 import time
+import uuid
 from dotenv import load_dotenv
 from datetime import datetime, timezone
 
 # Load env vars
 load_dotenv(os.path.expanduser("~/.supabase_env"))
 
-SUPABASE_URL = os.getenv("SUPABASE_URL")
-SUPABASE_KEY = os.getenv("SUPABASE_KEY")
+WINEOPS_API_URL = os.getenv("WINEOPS_API_URL")
+WINEOPS_INGEST_TOKEN = os.getenv("WINEOPS_INGEST_TOKEN")
+REQUEST_TIMEOUT_SECONDS = 10
 
 def get_sensor_ids():
     sensors = os.getenv("SENSORS")
@@ -31,42 +33,69 @@ def get_device_id():
 def read_temp(sensor_id):
     return get_temp.read_temp(sensor_id)
 
-def send_to_supabase(temp_c, sensor_id, device_id):
-    url = f"{SUPABASE_URL}/rest/v1/temperature_readings"
+def get_api_configuration():
+    if not WINEOPS_API_URL or not WINEOPS_API_URL.startswith("https://"):
+        raise Exception("WINEOPS_API_URL must be configured with an https:// URL")
+    if not WINEOPS_INGEST_TOKEN:
+        raise Exception("WINEOPS_INGEST_TOKEN must be configured")
+    return WINEOPS_API_URL.rstrip("/"), WINEOPS_INGEST_TOKEN
 
+def send_to_api(reading, device_id):
+    api_url, ingest_token = get_api_configuration()
     payload = {
-        "sensor_id": sensor_id,
         "device_id": device_id,
-        "temperature_c": temp_c,
-        "reading_timestamp": datetime.now(timezone.utc).isoformat()
+        **reading,
     }
 
     headers = {
-        "apikey": SUPABASE_KEY,
-        "Authorization": f"Bearer {SUPABASE_KEY}",
+        "Authorization": f"Bearer {ingest_token}",
         "Content-Type": "application/json",
-        "Prefer": "return=minimal"
     }
 
-    r = requests.post(url, json=payload, headers=headers)
+    response = requests.post(
+        f"{api_url}/api/readings",
+        json=payload,
+        headers=headers,
+        timeout=REQUEST_TIMEOUT_SECONDS,
+    )
+    response.raise_for_status()
+    print(f"Submitted reading for {reading['sensor_id']}: HTTP {response.status_code}")
 
-    print("Status:", r.status_code)
-    if r.text:
-        print(r.text)
-    r.raise_for_status()
+def log_submission_failure(device_id, reading, error):
+    print(
+        "Reading submission failed: "
+        f"device_id={device_id} sensor_id={reading.get('sensor_id', 'unknown')} "
+        f"measurement_at={reading.get('reading_timestamp', 'unknown')} "
+        f"error={type(error).__name__}"
+    )
+
+def report_readings_once(sensors, device_id):
+    for sensor_id in sensors:
+        try:
+            reading = {
+                "reading_id": str(uuid.uuid4()),
+                "sensor_id": sensor_id,
+                "temperature_c": read_temp(sensor_id),
+                "reading_timestamp": datetime.now(timezone.utc).isoformat(),
+            }
+        except Exception as e:
+            print(f"{sensor_id} failed:", e)
+            continue
+
+        try:
+            send_to_api(reading, device_id)
+        except requests.RequestException as e:
+            # Do not log the response body: it can include deployment details.
+            log_submission_failure(device_id, reading, e)
+        except Exception as e:
+            log_submission_failure(device_id, reading, e)
 
 def main():
     sensors = get_sensor_ids()
     device_id = get_device_id()
 
     while True: 
-        for sensor_id in sensors:
-            try:
-                temp = read_temp(sensor_id)
-                send_to_supabase(temp, sensor_id, device_id)
-
-            except Exception as e:
-                print(f"{sensor_id} failed:", e)
+        report_readings_once(sensors, device_id)
     
         # wait 15 minutes
         time.sleep(15 * 60)

@@ -212,7 +212,7 @@ validate_existing_environment() {
     fi
 
     case "${name}" in
-      SUPABASE_URL|SUPABASE_KEY|DEVICE_ID|SENSORS) ;;
+      WINEOPS_API_URL|WINEOPS_INGEST_TOKEN|DEVICE_ID|SENSORS) ;;
       *) die "Unsupported or invalid configuration entry on line ${line_number} in ${ENV_FILE}." ;;
     esac
 
@@ -247,7 +247,7 @@ reconcile_existing_environment() {
 
   validate_existing_environment
 
-  for name in SUPABASE_URL SUPABASE_KEY DEVICE_ID SENSORS; do
+  for name in WINEOPS_API_URL WINEOPS_INGEST_TOKEN DEVICE_ID SENSORS; do
     [[ -n "$(configuration_value "${name}")" ]] || missing+=("${name}")
   done
 
@@ -274,17 +274,17 @@ reconcile_existing_environment() {
   for name in "${missing[@]}"; do
     [[ "${name}" == DEVICE_ID && "${device_id_resolved}" == true ]] && continue
     case "${name}" in
-      SUPABASE_URL)
-        read -r -p 'SUPABASE_URL: ' value
-        validate_single_line "SUPABASE_URL" "${value}"
-        [[ "${value}" =~ ^https?:// ]] || die "SUPABASE_URL must begin with http:// or https://."
-        additions+="SUPABASE_URL=$(dotenv_quote "${value}")"$'\n'
+      WINEOPS_API_URL)
+        read -r -p 'WINEOPS_API_URL: ' value
+        validate_single_line "WINEOPS_API_URL" "${value}"
+        [[ "${value}" =~ ^https:// ]] || die "WINEOPS_API_URL must begin with https://."
+        additions+="WINEOPS_API_URL=$(dotenv_quote "${value}")"$'\n'
         ;;
-      SUPABASE_KEY)
-        read -r -s -p 'SUPABASE_KEY (hidden): ' value
+      WINEOPS_INGEST_TOKEN)
+        read -r -s -p 'WINEOPS_INGEST_TOKEN (hidden): ' value
         printf '\n'
-        validate_single_line "SUPABASE_KEY" "${value}"
-        additions+="SUPABASE_KEY=$(dotenv_quote "${value}")"$'\n'
+        validate_single_line "WINEOPS_INGEST_TOKEN" "${value}"
+        additions+="WINEOPS_INGEST_TOKEN=$(dotenv_quote "${value}")"$'\n'
         ;;
       DEVICE_ID)
         read -r -p 'DEVICE_ID (stable name for this Pi): ' value
@@ -306,8 +306,8 @@ reconcile_existing_environment() {
 }
 
 configure_environment() {
-  local supabase_url
-  local supabase_key
+  local wineops_api_url
+  local wineops_ingest_token
   local sensors
   local device_id
   local detected_csv=""
@@ -323,13 +323,13 @@ configure_environment() {
     die "Configuration path exists but is not a regular file: ${ENV_FILE}"
   fi
 
-  printf '\nSupabase configuration\n'
-  read -r -p 'SUPABASE_URL: ' supabase_url
-  read -r -s -p 'SUPABASE_KEY (hidden): ' supabase_key
+  printf '\nWineOps API configuration\n'
+  read -r -p 'WINEOPS_API_URL: ' wineops_api_url
+  read -r -s -p 'WINEOPS_INGEST_TOKEN (hidden): ' wineops_ingest_token
   printf '\n'
-  validate_single_line "SUPABASE_URL" "${supabase_url}"
-  validate_single_line "SUPABASE_KEY" "${supabase_key}"
-  [[ "${supabase_url}" =~ ^https?:// ]] || die "SUPABASE_URL must begin with http:// or https://."
+  validate_single_line "WINEOPS_API_URL" "${wineops_api_url}"
+  validate_single_line "WINEOPS_INGEST_TOKEN" "${wineops_ingest_token}"
+  [[ "${wineops_api_url}" =~ ^https:// ]] || die "WINEOPS_API_URL must begin with https://."
 
   read -r -p 'DEVICE_ID (stable name for this Pi): ' device_id
   validate_single_line "DEVICE_ID" "${device_id}"
@@ -348,8 +348,8 @@ configure_environment() {
   temp_file="$(mktemp "${ENV_FILE}.tmp.XXXXXX")"
   chmod 600 "${temp_file}"
   {
-    printf 'SUPABASE_URL=%s\n' "$(dotenv_quote "${supabase_url}")"
-    printf 'SUPABASE_KEY=%s\n' "$(dotenv_quote "${supabase_key}")"
+    printf 'WINEOPS_API_URL=%s\n' "$(dotenv_quote "${wineops_api_url}")"
+    printf 'WINEOPS_INGEST_TOKEN=%s\n' "$(dotenv_quote "${wineops_ingest_token}")"
     printf 'DEVICE_ID=%s\n' "$(dotenv_quote "${device_id}")"
     printf 'SENSORS=%s\n' "$(dotenv_quote "${sensors}")"
   } >"${temp_file}"
@@ -362,7 +362,7 @@ configure_environment() {
   fi
   mv -- "${temp_file}" "${ENV_FILE}"
   chmod 600 "${ENV_FILE}"
-  unset supabase_key
+  unset wineops_ingest_token
   printf 'Wrote configuration to %s with permissions 600.\n' "${ENV_FILE}"
 }
 

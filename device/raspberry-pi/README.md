@@ -55,8 +55,8 @@ only while installing system packages and the systemd service.
 
 On its first run, the script prompts for:
 
-- `SUPABASE_URL`
-- `SUPABASE_KEY` (input is hidden)
+- `WINEOPS_API_URL` (the HTTPS base URL of the WineOps Fastify API)
+- `WINEOPS_INGEST_TOKEN` (input is hidden)
 - `DEVICE_ID` (a stable, unique name for that Raspberry Pi)
 - `SENSORS` (detected `28-*` IDs are offered as the default)
 
@@ -64,12 +64,12 @@ Configuration is stored in `~/.supabase_env` with permissions `600`. An
 existing file is preserved during normal setup runs.
 
 The supported configuration format permits blank lines and `#` comments, plus
-one non-empty, quoted assignment for each of `SUPABASE_URL`, `SUPABASE_KEY`,
+one non-empty, quoted assignment for each of `WINEOPS_API_URL`, `WINEOPS_INGEST_TOKEN`,
 `DEVICE_ID`, and `SENSORS`. For example:
 
 ```bash
-SUPABASE_URL='https://example.supabase.co'
-SUPABASE_KEY='your-key'
+WINEOPS_API_URL='https://api.example.com'
+WINEOPS_INGEST_TOKEN='shared-ingest-token'
 DEVICE_ID='pi-cellar-1'
 SENSORS='28-000001'
 ```
@@ -89,7 +89,7 @@ repository root:
 
 It retains the sparse-checkout configuration and uses `git pull --ff-only`,
 then updates Python dependencies and the rendered service. It preserves all
-existing values in `~/.supabase_env`, including Supabase credentials and sensor
+existing values in `~/.supabase_env`, including the API URL, ingest token, and sensor
 IDs. When a newly required value is missing, it derives a valid `DEVICE_ID`
 from the Pi hostname when possible; otherwise it prompts only for the missing
 value. The file mode is preserved when configuration is reconciled.
@@ -151,8 +151,16 @@ To explicitly replace the Supabase or sensor configuration:
 The previous environment file is retained as a timestamped backup. Secrets are
 never accepted as command-line arguments.
 
-Existing installations must use `--reconfigure` once to add `DEVICE_ID` before
-updating to the health-monitoring reporter.
+Existing installations that contain `SUPABASE_URL`/`SUPABASE_KEY` must use
+`--reconfigure` once to replace those direct-database credentials with
+`WINEOPS_API_URL` and `WINEOPS_INGEST_TOKEN`. Perform this only after the API
+deployment and database migration have been verified. A normal `--update`
+rejects that old format before changing the configuration, virtual environment,
+or systemd service, so the existing reporter is not stopped or restarted on
+that failure. After correcting the deployment prerequisites, run
+`./device/raspberry-pi/setup.sh --update --reconfigure`; it makes a timestamped
+backup of the old file before replacing it and restarts the reporter only after
+the complete setup succeeds.
 
 ## Service operation
 
