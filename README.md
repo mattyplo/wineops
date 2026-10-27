@@ -56,7 +56,7 @@ WineOps currently supports:
 
 ## Data Flow
 1. Raspberry Pi reads DS18B20 sensor values
-2. Sensor collector batches readings to the Fastify API
+2. Sensor collector sends each reading to the Fastify API
 3. Fastify validates and stores readings in Supabase, then exposes dashboard reads
 4. React dashboard displays current temperatures
 
@@ -134,6 +134,12 @@ GET /api/experiments/:id
 
 GET /api/experiments/:id/readings
 ```
+
+`POST /api/readings` accepts one measurement per request. It requires a bearer
+token and a JSON body containing `device_id`, client-generated UUID
+`reading_id`, `sensor_id`, `temperature_c`, and the original
+`reading_timestamp`. An identical UUID replay returns `200`; a newly stored
+reading returns `201`.
 
 ## Frontend
 

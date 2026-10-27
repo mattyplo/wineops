@@ -40,11 +40,11 @@ def get_api_configuration():
         raise Exception("WINEOPS_INGEST_TOKEN must be configured")
     return WINEOPS_API_URL.rstrip("/"), WINEOPS_INGEST_TOKEN
 
-def send_to_api(readings, device_id):
+def send_to_api(reading, device_id):
     api_url, ingest_token = get_api_configuration()
     payload = {
         "device_id": device_id,
-        "readings": readings,
+        **reading,
     }
 
     headers = {
@@ -59,45 +59,43 @@ def send_to_api(readings, device_id):
         timeout=REQUEST_TIMEOUT_SECONDS,
     )
     response.raise_for_status()
-    print(f"Submitted {len(readings)} reading(s): HTTP {response.status_code}")
+    print(f"Submitted reading for {reading['sensor_id']}: HTTP {response.status_code}")
 
-def log_submission_failure(device_id, readings, error):
-    measurement_times = [reading.get("reading_timestamp") for reading in readings]
-    first_measurement_at = min(measurement_times) if measurement_times else "unknown"
+def log_submission_failure(device_id, reading, error):
     print(
         "Reading submission failed: "
-        f"device_id={device_id} batch_size={len(readings)} "
-        f"first_measurement_at={first_measurement_at} "
+        f"device_id={device_id} sensor_id={reading.get('sensor_id', 'unknown')} "
+        f"measurement_at={reading.get('reading_timestamp', 'unknown')} "
         f"error={type(error).__name__}"
     )
+
+def report_readings_once(sensors, device_id):
+    for sensor_id in sensors:
+        try:
+            reading = {
+                "reading_id": str(uuid.uuid4()),
+                "sensor_id": sensor_id,
+                "temperature_c": read_temp(sensor_id),
+                "reading_timestamp": datetime.now(timezone.utc).isoformat(),
+            }
+        except Exception as e:
+            print(f"{sensor_id} failed:", e)
+            continue
+
+        try:
+            send_to_api(reading, device_id)
+        except requests.RequestException as e:
+            # Do not log the response body: it can include deployment details.
+            log_submission_failure(device_id, reading, e)
+        except Exception as e:
+            log_submission_failure(device_id, reading, e)
 
 def main():
     sensors = get_sensor_ids()
     device_id = get_device_id()
 
     while True: 
-        readings = []
-        for sensor_id in sensors:
-            try:
-                temp = read_temp(sensor_id)
-                readings.append({
-                    "reading_id": str(uuid.uuid4()),
-                    "sensor_id": sensor_id,
-                    "temperature_c": temp,
-                    "reading_timestamp": datetime.now(timezone.utc).isoformat(),
-                })
-
-            except Exception as e:
-                print(f"{sensor_id} failed:", e)
-
-        if readings:
-            try:
-                send_to_api(readings, device_id)
-            except requests.RequestException as e:
-                # Do not log the response body: it can include deployment details.
-                log_submission_failure(device_id, readings, e)
-            except Exception as e:
-                log_submission_failure(device_id, readings, e)
+        report_readings_once(sensors, device_id)
     
         # wait 15 minutes
         time.sleep(15 * 60)

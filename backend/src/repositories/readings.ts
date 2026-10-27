@@ -13,7 +13,7 @@ export interface IngestionResult {
 }
 
 export interface ReadingRepository {
-  ingest(deviceId: string, readings: IngestReading[]): Promise<IngestionResult>;
+  ingest(deviceId: string, reading: IngestReading): Promise<IngestionResult>;
 }
 
 export class ReadingIngestionError extends Error {
@@ -26,10 +26,13 @@ export class ReadingIngestionError extends Error {
 }
 
 export const readingRepository: ReadingRepository = {
-  async ingest(deviceId, readings) {
-    const { data, error } = await supabase.rpc("ingest_temperature_readings", {
+  async ingest(deviceId, reading) {
+    const { data, error } = await supabase.rpc("ingest_temperature_reading", {
       p_device_id: deviceId,
-      p_readings: readings,
+      p_reading_id: reading.reading_id,
+      p_sensor_id: reading.sensor_id,
+      p_temperature_c: reading.temperature_c,
+      p_reading_timestamp: reading.reading_timestamp,
     });
 
     if (error) {

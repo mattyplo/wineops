@@ -22,15 +22,15 @@ export async function getLatestReadings() {
 }
 
 export interface ReadingIngestionService {
-  ingest(deviceId: string, readings: IngestReading[]): Promise<IngestionResult>;
+  ingest(deviceId: string, reading: IngestReading): Promise<IngestionResult>;
 }
 
 export function createReadingIngestionService(
   repository: ReadingRepository = readingRepository,
 ): ReadingIngestionService {
   return {
-    ingest(deviceId, readings) {
-      return repository.ingest(deviceId, readings);
+    ingest(deviceId, reading) {
+      return repository.ingest(deviceId, reading);
     },
   };
 }

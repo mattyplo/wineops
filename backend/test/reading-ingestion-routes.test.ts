@@ -36,20 +36,20 @@ function request(app: Awaited<ReturnType<typeof build>>, payload: unknown, token
 }
 
 describe("POST /api/readings", () => {
-  it("authenticates and persists a valid batch", async () => {
-    const received: Array<{ deviceId: string; readings: IngestReading[] }> = [];
+  it("authenticates and persists one valid reading", async () => {
+    const received: Array<{ deviceId: string; reading: IngestReading }> = [];
     const service = fixtureService();
-    service.ingest = async (deviceId, readings) => {
-      received.push({ deviceId, readings });
+    service.ingest = async (deviceId, receivedReading) => {
+      received.push({ deviceId, reading: receivedReading });
       return { inserted: 1, duplicates: 0 };
     };
     const app = await build(service);
 
-    const response = await request(app, { device_id: "cellar-pi", readings: [reading] });
+    const response = await request(app, { device_id: "cellar-pi", ...reading });
 
     assert.equal(response.statusCode, 201);
     assert.deepEqual(response.json(), { inserted: 1, duplicates: 0 });
-    assert.deepEqual(received, [{ deviceId: "cellar-pi", readings: [reading] }]);
+    assert.deepEqual(received, [{ deviceId: "cellar-pi", reading }]);
     await app.close();
   });
 
@@ -59,8 +59,8 @@ describe("POST /api/readings", () => {
     const app = await build(service);
 
     const unauthenticatedRequests = [
-      app.inject({ method: "POST", url: "/api/readings", payload: { device_id: "cellar-pi", readings: [reading] } }),
-      request(app, { device_id: "cellar-pi", readings: [reading] }, "wrong-token"),
+      app.inject({ method: "POST", url: "/api/readings", payload: { device_id: "cellar-pi", ...reading } }),
+      request(app, { device_id: "cellar-pi", ...reading }, "wrong-token"),
     ];
     for (const pendingResponse of unauthenticatedRequests) {
       const response = await pendingResponse;
@@ -70,14 +70,14 @@ describe("POST /api/readings", () => {
     await app.close();
   });
 
-  it("rejects malformed, empty, and internally duplicated batches", async () => {
+  it("rejects malformed or batch-shaped input", async () => {
     const app = await build();
     for (const payload of [
-      { device_id: "cellar-pi", readings: [] },
-      { device_id: "cellar-pi", readings: [{ ...reading, reading_id: "not-a-uuid" }] },
-      { device_id: "cellar-pi", readings: [reading, reading] },
-      { device_id: "cellar-pi", readings: [{ ...reading, temperature_c: Number.NaN }] },
-      { device_id: "cellar-pi", readings: [{ ...reading, reading_timestamp: "not-a-time" }] },
+      { device_id: "cellar-pi", readings: [reading] },
+      { device_id: "cellar-pi", ...reading, reading_id: "not-a-uuid" },
+      { device_id: "cellar-pi", ...reading, temperature_c: Number.NaN },
+      { device_id: "cellar-pi", ...reading, reading_timestamp: "not-a-time" },
+      { device_id: "cellar-pi", ...reading, unexpected: true },
     ]) {
       const response = await request(app, payload);
       assert.equal(response.statusCode, 400);
@@ -85,16 +85,13 @@ describe("POST /api/readings", () => {
     await app.close();
   });
 
-  it("returns 200 for a mixed new and duplicate batch", async () => {
+  it("returns 200 for an idempotent replay", async () => {
     const service = fixtureService();
-    service.ingest = async () => ({ inserted: 1, duplicates: 1 });
+    service.ingest = async () => ({ inserted: 0, duplicates: 1 });
     const app = await build(service);
-    const response = await request(app, {
-      device_id: "cellar-pi",
-      readings: [reading, { ...reading, reading_id: "00000000-0000-4000-8000-000000000002" }],
-    });
+    const response = await request(app, { device_id: "cellar-pi", ...reading });
     assert.equal(response.statusCode, 200);
-    assert.deepEqual(response.json(), { inserted: 1, duplicates: 1 });
+    assert.deepEqual(response.json(), { inserted: 0, duplicates: 1 });
     await app.close();
   });
 
@@ -107,7 +104,7 @@ describe("POST /api/readings", () => {
       const service = fixtureService();
       service.ingest = async () => { throw error; };
       const app = await build(service);
-      const response = await request(app, { device_id: "cellar-pi", readings: [reading] });
+      const response = await request(app, { device_id: "cellar-pi", ...reading });
       assert.equal(response.statusCode, expectedStatus);
       assert.deepEqual(response.json(), { error: error.message });
       await app.close();
@@ -118,7 +115,7 @@ describe("POST /api/readings", () => {
     const service = fixtureService();
     service.ingest = async () => { throw new Error("database unavailable"); };
     const app = await build(service);
-    const response = await request(app, { device_id: "cellar-pi", readings: [reading] });
+    const response = await request(app, { device_id: "cellar-pi", ...reading });
     assert.equal(response.statusCode, 500);
     await app.close();
   });

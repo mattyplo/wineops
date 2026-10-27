@@ -27,7 +27,7 @@ Before applying `005`, confirm Fastify is configured with a Supabase
 **service-role** key. The migration adds `temperature_readings.reading_id` with
 a database UUID default, so existing direct Pi inserts keep working during the
 staged rollout. It creates a service-role-only `SECURITY DEFINER` RPC that
-validates ACTIVE registry sensors and atomically records a whole batch. Exact
+validates ACTIVE registry sensors and atomically records one reading. Exact
 UUID replays succeed; a reused UUID with different durable data conflicts.
 
 After applying, verify the column has no nulls or duplicates and exercise the
@@ -42,8 +42,8 @@ the complete migration sequence to `public`. Point
 `WINEOPS_TEST_DATABASE_URL` only at a disposable, empty database with a role
 that can create the Supabase compatibility roles, then run
 `npm run test:database` from `backend/`. It verifies legacy-row/dashboard
-compatibility, RPC grants, ACTIVE registry validation, atomic rollback,
-concurrent duplicate/conflicting UUID behavior, and timestamp precision.
+compatibility, RPC grants, ACTIVE registry validation, concurrent
+duplicate/conflicting UUID behavior, and timestamp precision.
 
 ### Staged deployment sequence
 

@@ -12,7 +12,7 @@ const uuidPattern =
 
 interface IngestionInput {
   device_id: string;
-  readings: IngestReading[];
+  reading: IngestReading;
 }
 
 function isTimestamp(value: unknown): value is string {
@@ -23,28 +23,27 @@ function isTimestamp(value: unknown): value is string {
 export function validateIngestionInput(body: unknown): IngestionInput | null {
   if (!body || typeof body !== "object" || Array.isArray(body)) return null;
   const value = body as Record<string, unknown>;
-  if (Object.keys(value).length !== 2 ||
+  if (Object.keys(value).length !== 5 ||
     !Object.prototype.hasOwnProperty.call(value, "device_id") ||
-    !Object.prototype.hasOwnProperty.call(value, "readings") ||
+    !Object.prototype.hasOwnProperty.call(value, "reading_id") ||
+    !Object.prototype.hasOwnProperty.call(value, "sensor_id") ||
+    !Object.prototype.hasOwnProperty.call(value, "temperature_c") ||
+    !Object.prototype.hasOwnProperty.call(value, "reading_timestamp") ||
     typeof value.device_id !== "string" || !value.device_id.trim() ||
-    !Array.isArray(value.readings) || value.readings.length === 0) return null;
+    !uuidPattern.test(String(value.reading_id)) ||
+    typeof value.sensor_id !== "string" || !value.sensor_id.trim() ||
+    typeof value.temperature_c !== "number" || !Number.isFinite(value.temperature_c) ||
+    !isTimestamp(value.reading_timestamp)) return null;
 
-  const readingIds = new Set<string>();
-  const readings: IngestReading[] = [];
-  for (const item of value.readings) {
-    if (!item || typeof item !== "object" || Array.isArray(item)) return null;
-    const reading = item as Record<string, unknown>;
-    if (Object.keys(reading).length !== 4 ||
-      !uuidPattern.test(String(reading.reading_id)) ||
-      typeof reading.sensor_id !== "string" || !reading.sensor_id.trim() ||
-      typeof reading.temperature_c !== "number" || !Number.isFinite(reading.temperature_c) ||
-      !isTimestamp(reading.reading_timestamp) || readingIds.has(reading.reading_id as string)) {
-      return null;
-    }
-    readingIds.add(reading.reading_id as string);
-    readings.push(reading as unknown as IngestReading);
-  }
-  return { device_id: value.device_id, readings };
+  return {
+    device_id: value.device_id,
+    reading: {
+      reading_id: value.reading_id as string,
+      sensor_id: value.sensor_id,
+      temperature_c: value.temperature_c,
+      reading_timestamp: value.reading_timestamp,
+    },
+  };
 }
 
 function hasValidToken(authorization: string | undefined) {
@@ -65,7 +64,7 @@ export function readingRoutes(service: ReadingIngestionService = readingIngestio
     if (!input) return reply.code(400).send({ error: "Invalid reading input" });
 
     try {
-      const result = await service.ingest(input.device_id, input.readings);
+      const result = await service.ingest(input.device_id, input.reading);
       return reply.code(result.duplicates > 0 ? 200 : 201).send(result);
     } catch (error) {
       if (error instanceof ReadingIngestionError) {
