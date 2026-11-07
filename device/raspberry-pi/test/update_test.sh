@@ -188,6 +188,53 @@ test_repeated_updates_are_idempotent() {
   else fail 'repeated updates do not change reconciled configuration'; fi
 }
 
+test_existing_timing_settings_are_preserved() {
+  new_fixture
+  cat >"${HOME}/.supabase_env" <<'EOF'
+WINEOPS_API_URL='https://api.example.test'
+WINEOPS_INGEST_TOKEN='existing-secret'
+DEVICE_ID='pi-01'
+SENSORS='28-000001'
+REPORT_INTERVAL_SECONDS='120'
+REQUEST_TIMEOUT_SECONDS='45'
+EOF
+  chmod 640 "${HOME}/.supabase_env"
+  cp "${HOME}/.supabase_env" "${FIXTURE}/before"
+  if run_setup --update --non-interactive &&
+     cmp -s "${FIXTURE}/before" "${HOME}/.supabase_env"; then
+    pass 'update preserves existing reporter timing settings'
+  else fail 'update preserves existing reporter timing settings'; fi
+}
+
+test_invalid_timing_settings_fail_before_service_restart() {
+  local name
+  local value
+
+  for name in REPORT_INTERVAL_SECONDS REQUEST_TIMEOUT_SECONDS; do
+    for value in '' ' ' '1.5' '0' '-1' 'five'; do
+      new_fixture
+      {
+        printf "%s\n" "WINEOPS_API_URL='https://api.example.test'"
+        printf "%s\n" "WINEOPS_INGEST_TOKEN='existing-secret'"
+        printf "%s\n" "DEVICE_ID='pi-01'"
+        printf "%s\n" "SENSORS='28-000001'"
+        printf "%s='%s'\n" "${name}" "${value}"
+      } >"${HOME}/.supabase_env"
+      chmod 640 "${HOME}/.supabase_env"
+      cp "${HOME}/.supabase_env" "${FIXTURE}/before"
+      if run_setup --update --non-interactive ||
+         ! cmp -s "${FIXTURE}/before" "${HOME}/.supabase_env" ||
+         ! assert_contains "${name} must be a positive integer" "${FIXTURE}/output" ||
+         ! assert_not_contains 'systemctl daemon-reload' "${WINEOPS_TEST_LOG}" ||
+         ! assert_not_contains 'systemctl restart' "${WINEOPS_TEST_LOG}"; then
+        fail 'invalid timing settings fail before service restart'
+        return
+      fi
+    done
+  done
+  pass 'invalid timing settings fail before service restart'
+}
+
 test_dependency_failure_does_not_restart_reporter() {
   new_fixture
   write_legacy_config
@@ -311,6 +358,8 @@ test_noninteractive_reports_missing_values_without_modifying_config
 test_old_direct_supabase_configuration_fails_without_restarting_reporter
 test_old_direct_supabase_configuration_recovers_with_reconfigure
 test_repeated_updates_are_idempotent
+test_existing_timing_settings_are_preserved
+test_invalid_timing_settings_fail_before_service_restart
 test_dependency_failure_does_not_restart_reporter
 test_dependency_failure_preserves_active_virtualenv
 test_virtualenv_activation_preserves_console_scripts

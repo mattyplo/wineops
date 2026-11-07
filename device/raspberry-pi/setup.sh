@@ -186,6 +186,15 @@ configuration_value() {
   sed -n "s/^${name}=['\"]\\{0,1\\}\\([^'\"]*\\)['\"]\\{0,1\\}$/\\1/p" "${ENV_FILE}" | tail -n 1
 }
 
+validate_positive_integer_configuration() {
+  local name=$1
+  local value=$2
+
+  if [[ ! "${value}" =~ ^[0-9]+$ || "${value}" =~ ^0+$ ]]; then
+    die "${name} must be a positive integer in ${ENV_FILE}; got '${value}'."
+  fi
+}
+
 validate_existing_environment() {
   local line
   local line_number=0
@@ -206,14 +215,23 @@ validate_existing_environment() {
 
     if [[ ${#value} -lt 2 ||
       ( "${value:0:1}" != "'" && "${value:0:1}" != '"' ) ||
-      "${value: -1}" != "${value:0:1}" ||
-      -z "${value:1:${#value}-2}" ]]; then
+      "${value: -1}" != "${value:0:1}" ]]; then
       die "Unsupported or invalid configuration entry on line ${line_number} in ${ENV_FILE}."
     fi
 
     case "${name}" in
-      WINEOPS_API_URL|WINEOPS_INGEST_TOKEN|DEVICE_ID|SENSORS) ;;
+      WINEOPS_API_URL|WINEOPS_INGEST_TOKEN|DEVICE_ID|SENSORS|REPORT_INTERVAL_SECONDS|REQUEST_TIMEOUT_SECONDS) ;;
       *) die "Unsupported or invalid configuration entry on line ${line_number} in ${ENV_FILE}." ;;
+    esac
+
+    value="${value:1:${#value}-2}"
+    if [[ -z "${value}" && "${name}" != REPORT_INTERVAL_SECONDS && "${name}" != REQUEST_TIMEOUT_SECONDS ]]; then
+      die "Unsupported or invalid configuration entry on line ${line_number} in ${ENV_FILE}."
+    fi
+    case "${name}" in
+      REPORT_INTERVAL_SECONDS|REQUEST_TIMEOUT_SECONDS)
+        validate_positive_integer_configuration "${name}" "${value}"
+        ;;
     esac
 
     if ((${#seen_names[@]})) && [[ " ${seen_names[*]} " == *" ${name} "* ]]; then
