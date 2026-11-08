@@ -72,7 +72,18 @@ WINEOPS_API_URL='https://api.example.com'
 WINEOPS_INGEST_TOKEN='shared-ingest-token'
 DEVICE_ID='pi-cellar-1'
 SENSORS='28-000001'
+# Optional positive-integer settings; these are the defaults when omitted.
+REPORT_INTERVAL_SECONDS='300'
+REQUEST_TIMEOUT_SECONDS='90'
 ```
+
+`REPORT_INTERVAL_SECONDS` sets the delay after a reporting cycle completes
+(default: 300 seconds); it is not a fixed measurement frequency, because the
+cycle also includes sensor-read and HTTP submission time.
+`REQUEST_TIMEOUT_SECONDS` sets the HTTP request timeout (default: 90 seconds).
+They are optional and are preserved unchanged by normal updates; an existing
+configuration that omits them continues to use the new defaults. The reporter
+rejects zero, negative, and non-integer values at startup.
 
 Updates reject empty values, duplicate assignments, and unsupported entries
 instead of appending a conflicting setting. Use `--reconfigure` to replace an
@@ -89,8 +100,9 @@ repository root:
 
 It retains the sparse-checkout configuration and uses `git pull --ff-only`,
 then updates Python dependencies and the rendered service. It preserves all
-existing values in `~/.supabase_env`, including the API URL, ingest token, and sensor
-IDs. When a newly required value is missing, it derives a valid `DEVICE_ID`
+existing values in `~/.supabase_env`, including the API URL, ingest token,
+sensor IDs, and optional reporter timing settings. When a newly required value
+is missing, it derives a valid `DEVICE_ID`
 from the Pi hostname when possible; otherwise it prompts only for the missing
 value. The file mode is preserved when configuration is reconciled.
 

@@ -50,7 +50,18 @@ Example:
 
 ```env
 SENSORS=28-00000021a7d3,28-00000021b23b
+# Optional: both values must be positive integers.
+REPORT_INTERVAL_SECONDS=300
+REQUEST_TIMEOUT_SECONDS=90
 ```
+
+`REPORT_INTERVAL_SECONDS` controls the delay after a reporting cycle completes
+and defaults to `300` (five minutes). It is not a fixed measurement frequency:
+actual cycle spacing also includes sensor-read and HTTP submission time.
+`REQUEST_TIMEOUT_SECONDS` controls the HTTP request timeout and defaults to
+`90`. Both settings are optional, so existing configuration files continue to
+use these defaults. Invalid values cause the reporter to exit at startup with
+an error that identifies the setting.
 
 ## Enable 1-Wire Interface
 

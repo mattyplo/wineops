@@ -11,7 +11,32 @@ load_dotenv(os.path.expanduser("~/.supabase_env"))
 
 WINEOPS_API_URL = os.getenv("WINEOPS_API_URL")
 WINEOPS_INGEST_TOKEN = os.getenv("WINEOPS_INGEST_TOKEN")
-REQUEST_TIMEOUT_SECONDS = 10
+DEFAULT_REPORT_INTERVAL_SECONDS = 300
+DEFAULT_REQUEST_TIMEOUT_SECONDS = 90
+REQUEST_TIMEOUT_SECONDS = DEFAULT_REQUEST_TIMEOUT_SECONDS
+
+
+def get_positive_integer_environment(name, default):
+    value = os.getenv(name)
+
+    if value is None:
+        return default
+    if not value.isascii() or not value.isdecimal() or int(value) <= 0:
+        raise Exception(
+            f"{name} must be a positive integer in ~/.supabase_env; got {value!r}."
+        )
+    return int(value)
+
+
+def get_reporter_settings():
+    return (
+        get_positive_integer_environment(
+            "REPORT_INTERVAL_SECONDS", DEFAULT_REPORT_INTERVAL_SECONDS
+        ),
+        get_positive_integer_environment(
+            "REQUEST_TIMEOUT_SECONDS", DEFAULT_REQUEST_TIMEOUT_SECONDS
+        ),
+    )
 
 def get_sensor_ids():
     sensors = os.getenv("SENSORS")
@@ -91,14 +116,16 @@ def report_readings_once(sensors, device_id):
             log_submission_failure(device_id, reading, e)
 
 def main():
+    global REQUEST_TIMEOUT_SECONDS
+
+    report_interval_seconds, REQUEST_TIMEOUT_SECONDS = get_reporter_settings()
     sensors = get_sensor_ids()
     device_id = get_device_id()
 
-    while True: 
+    while True:
         report_readings_once(sensors, device_id)
-    
-        # wait 15 minutes
-        time.sleep(15 * 60)
+
+        time.sleep(report_interval_seconds)
 
 if __name__ == "__main__":
     main()
