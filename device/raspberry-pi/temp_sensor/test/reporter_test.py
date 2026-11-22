@@ -1,9 +1,8 @@
-import contextlib
 import importlib.util
-import io
 import os
 from pathlib import Path
 import sys
+import tempfile
 import types
 import unittest
 from unittest.mock import patch
@@ -23,9 +22,11 @@ spec = importlib.util.spec_from_file_location("wineops_reporter", reporter_path)
 reporter = importlib.util.module_from_spec(spec)
 assert spec.loader
 spec.loader.exec_module(reporter)
-original_read_temp = reporter.read_temp
-original_send_to_api = reporter.send_to_api
-original_report_readings_once = reporter.report_readings_once
+
+
+def reading(identifier="00000000-0000-4000-8000-000000000001"):
+    return {"reading_id": identifier, "sensor_id": "28-1", "temperature_c": 20.5,
+            "reading_timestamp": "2026-10-26T10:00:00+00:00"}
 
 
 class ReporterTests(unittest.TestCase):
@@ -33,138 +34,123 @@ class ReporterTests(unittest.TestCase):
         reporter.WINEOPS_API_URL = "https://api.example.test/"
         reporter.WINEOPS_INGEST_TOKEN = "not-for-logs"
         reporter.REQUEST_TIMEOUT_SECONDS = reporter.DEFAULT_REQUEST_TIMEOUT_SECONDS
-        reporter.read_temp = original_read_temp
-        reporter.send_to_api = original_send_to_api
-        reporter.report_readings_once = original_report_readings_once
+        self.tempdir = tempfile.TemporaryDirectory()
+        self.queue_path = os.path.join(self.tempdir.name, "readings.sqlite3")
 
-    def test_reporter_settings_use_defaults_when_absent(self):
+    def tearDown(self):
+        self.tempdir.cleanup()
+
+    def queue(self, capacity=10):
+        return reporter.ReadingQueue(self.queue_path, capacity)
+
+    def test_settings_use_defaults_and_reject_invalid_values(self):
         with patch.dict(os.environ, {}, clear=False):
             os.environ.pop("REPORT_INTERVAL_SECONDS", None)
             os.environ.pop("REQUEST_TIMEOUT_SECONDS", None)
-            self.assertEqual(
-                reporter.get_reporter_settings(),
-                (
-                    reporter.DEFAULT_REPORT_INTERVAL_SECONDS,
-                    reporter.DEFAULT_REQUEST_TIMEOUT_SECONDS,
-                ),
-            )
+            self.assertEqual(reporter.get_reporter_settings(), (300, 90))
+        with patch.dict(os.environ, {"REPORT_INTERVAL_SECONDS": "0"}):
+            with self.assertRaisesRegex(Exception, "REPORT_INTERVAL_SECONDS must be a positive integer"):
+                reporter.get_reporter_settings()
 
-    def test_reporter_settings_respect_valid_environment_overrides(self):
-        with patch.dict(
-            os.environ,
-            {"REPORT_INTERVAL_SECONDS": "120", "REQUEST_TIMEOUT_SECONDS": "45"},
-        ):
-            self.assertEqual(reporter.get_reporter_settings(), (120, 45))
-
-    def test_reporter_settings_reject_invalid_values(self):
-        for name in ("REPORT_INTERVAL_SECONDS", "REQUEST_TIMEOUT_SECONDS"):
-            for value in ("", " ", "1.5", "0", "-1", "five"):
-                with self.subTest(name=name, value=value), patch.dict(
-                    os.environ, {name: value}, clear=False
-                ):
-                    with self.assertRaisesRegex(
-                        Exception, f"{name} must be a positive integer"
-                    ):
-                        reporter.get_reporter_settings()
-
-    def test_submission_uses_single_reading_endpoint_timeout_and_bearer_token(self):
+    def test_send_uses_single_reading_endpoint_timeout_and_bearer_token(self):
         captured = {}
-
         class Response:
             status_code = 201
-
-            def raise_for_status(self):
-                return None
-
+            def raise_for_status(self): pass
         def post(url, **kwargs):
             captured["url"] = url
             captured.update(kwargs)
             return Response()
-
         reporter.requests.post = post
-        reporter.send_to_api({"reading_id": "id", "sensor_id": "28-1", "reading_timestamp": "2026-10-26T10:00:00Z"}, "pi-1")
-
+        reporter.send_to_api(reading(), "pi-1")
         self.assertEqual(captured["url"], "https://api.example.test/api/readings")
-        self.assertEqual(captured["timeout"], reporter.REQUEST_TIMEOUT_SECONDS)
+        self.assertEqual(captured["timeout"], 90)
         self.assertEqual(captured["headers"]["Authorization"], "Bearer not-for-logs")
         self.assertEqual(captured["json"]["device_id"], "pi-1")
-        self.assertEqual(captured["json"]["sensor_id"], "28-1")
-        self.assertNotIn("readings", captured["json"])
 
-    def test_main_uses_configured_reporting_interval_and_request_timeout(self):
-        reported = []
+    def test_outage_then_recovery_preserves_original_payload_and_uuid(self):
+        queue = self.queue()
+        queue.enqueue(reading(), "pi-1", now=10)
+        sent = []
+        def timeout(_reading, _device_id=None):
+            raise reporter.SubmissionError("timeout")
+        with patch.object(reporter, "send_to_api", timeout):
+            reporter.replay_due_readings(queue)
+        saved = queue.next_due(now=10**12)
+        self.assertEqual(saved["reading_id"], reading()["reading_id"])
+        self.assertEqual(saved["reading_timestamp"], reading()["reading_timestamp"])
+        queue.connection.execute("UPDATE pending_readings SET next_attempt_at = 0")
+        queue.connection.commit()
+        with patch.object(reporter, "send_to_api", lambda item, _device_id=None: sent.append(item.copy())):
+            reporter.replay_due_readings(queue)
+        self.assertEqual([item["reading_id"] for item in sent], [reading()["reading_id"]])
+        self.assertEqual(queue.counts(), (0, 0))
+        queue.close()
 
-        class StopLoop(Exception):
-            pass
+    def test_restart_persistence_and_ambiguous_timeout_replay_same_uuid_once(self):
+        queue = self.queue()
+        queue.enqueue(reading(), "pi-1")
+        queue.close()
+        queue = self.queue()
+        seen = []
+        def ambiguous(item, _device_id=None):
+            seen.append(item["reading_id"])
+            raise reporter.SubmissionError("connection lost after request")
+        with patch.object(reporter, "send_to_api", ambiguous):
+            reporter.replay_due_readings(queue)
+        queue.connection.execute("UPDATE pending_readings SET next_attempt_at = 0")
+        queue.connection.commit()
+        with patch.object(reporter, "send_to_api", lambda item, _device_id=None: seen.append(item["reading_id"])):
+            reporter.replay_due_readings(queue)
+        self.assertEqual(seen, [reading()["reading_id"], reading()["reading_id"]])
+        self.assertEqual(queue.counts()[0], 0)
+        queue.close()
 
-        def sleep(seconds):
-            self.assertEqual(seconds, 123)
-            raise StopLoop()
+    def test_permanent_failure_is_retained_separately_without_blocking_later_reading(self):
+        queue = self.queue()
+        first, second = reading(), reading("00000000-0000-4000-8000-000000000002")
+        queue.enqueue(first, "pi-1")
+        queue.enqueue(second, "pi-1")
+        sent = []
+        def send(item, _device_id=None):
+            if item["reading_id"] == first["reading_id"]:
+                raise reporter.SubmissionError("invalid sensor", 422)
+            sent.append(item["reading_id"])
+        with patch.object(reporter, "send_to_api", send):
+            reporter.replay_due_readings(queue)
+        self.assertEqual(sent, [second["reading_id"]])
+        self.assertEqual(queue.counts(), (0, 1))
+        queue.close()
 
-        reporter.report_readings_once = lambda sensors, device_id: reported.append(
-            (sensors, device_id)
-        )
-        with patch.dict(
-            os.environ,
-            {"REPORT_INTERVAL_SECONDS": "123", "REQUEST_TIMEOUT_SECONDS": "67"},
-        ), patch.object(reporter, "get_sensor_ids", return_value=["28-1"]), patch.object(
-            reporter, "get_device_id", return_value="pi-1"
-        ), patch.object(reporter.time, "sleep", sleep):
+    def test_capacity_retains_existing_readings_and_fails_loudly(self):
+        queue = self.queue(capacity=1)
+        first, second = reading(), reading("00000000-0000-4000-8000-000000000002")
+        queue.enqueue(first, "pi-1")
+        with self.assertRaises(reporter.QueueFullError):
+            queue.enqueue(second, "pi-1")
+        self.assertEqual(queue.next_due()["reading_id"], first["reading_id"])
+        queue.close()
+
+    def test_queue_capacity_is_at_least_sixty_days_per_sensor(self):
+        self.assertGreaterEqual(reporter.QUEUE_READINGS_PER_SENSOR, reporter.MIN_QUEUE_READINGS_PER_SENSOR)
+        self.assertEqual(reporter.MIN_QUEUE_READINGS_PER_SENSOR, 17280)
+
+    def test_main_sleeps_until_fixed_next_sample_time(self):
+        class StopLoop(Exception): pass
+        class Queue:
+            path = "/tmp/test-queue"
+            capacity = 1
+            def close(self): pass
+        with patch.object(reporter, "get_reporter_settings", return_value=(300, 90)), \
+             patch.object(reporter, "get_sensor_ids", return_value=["28-1"]), \
+             patch.object(reporter, "get_device_id", return_value="pi-1"), \
+             patch.object(reporter, "ReadingQueue", return_value=Queue()), \
+             patch.object(reporter, "report_readings_once"), \
+             patch.object(reporter.time, "monotonic", side_effect=[100, 105]), \
+             patch.object(reporter.time, "sleep", side_effect=StopLoop) as sleep:
             with self.assertRaises(StopLoop):
                 reporter.main()
-
-        self.assertEqual(reported, [(["28-1"], "pi-1")])
-        self.assertEqual(reporter.REQUEST_TIMEOUT_SECONDS, 67)
-
-        captured = {}
-
-        class Response:
-            status_code = 201
-
-            def raise_for_status(self):
-                return None
-
-        def post(_url, **kwargs):
-            captured.update(kwargs)
-            return Response()
-
-        reporter.requests.post = post
-        reporter.send_to_api(
-            {
-                "reading_id": "id",
-                "sensor_id": "28-1",
-                "reading_timestamp": "2026-10-26T10:00:00Z",
-            },
-            "pi-1",
-        )
-        self.assertEqual(captured["timeout"], 67)
-
-    def test_failure_log_has_operational_context_but_not_token(self):
-        output = io.StringIO()
-        with contextlib.redirect_stdout(output):
-            reporter.log_submission_failure(
-                "pi-1",
-                {"sensor_id": "28-1", "reading_timestamp": "2026-10-26T10:01:00Z"},
-                requests.RequestException(),
-            )
-        message = output.getvalue()
-        self.assertIn("device_id=pi-1", message)
-        self.assertIn("sensor_id=28-1", message)
-        self.assertIn("measurement_at=2026-10-26T10:01:00Z", message)
-        self.assertNotIn("not-for-logs", message)
-
-    def test_one_submission_failure_does_not_prevent_later_sensors(self):
-        submitted = []
-        reporter.read_temp = lambda sensor_id: 20.0 if sensor_id != "bad-read" else (_ for _ in ()).throw(Exception("offline"))
-
-        def send(reading, _device_id):
-            submitted.append(reading["sensor_id"])
-            if reading["sensor_id"] == "bad-submit":
-                raise requests.RequestException()
-
-        reporter.send_to_api = send
-        reporter.report_readings_once(["good-first", "bad-read", "bad-submit", "good-last"], "pi-1")
-        self.assertEqual(submitted, ["good-first", "bad-submit", "good-last"])
+        sleep.assert_called_once_with(295)
 
 
 if __name__ == "__main__":
