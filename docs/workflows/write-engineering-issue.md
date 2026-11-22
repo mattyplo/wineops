@@ -17,7 +17,7 @@ State the desired outcome in terms of what should be true for the user or system
 
 Ask the human a concise question when an unanswered point would materially change the problem, scope, safety, or definition of success. Prefer questions that distinguish between real choices; do not ask for implementation decisions merely to fill out a ticket.
 
-Do not delay an issue for every uncertainty. If an answer is unavailable, retain the question or important unverified assumption in the ticket. An issue may explicitly call for investigation.
+Do not delay an issue for every uncertainty. If an answer is unavailable, retain consequential unresolved questions under **Open Questions** or the relevant important unverified assumption in **Context**. An issue may explicitly call for investigation.
 
 ## 3. Draft the ticket
 
@@ -38,7 +38,7 @@ Before publishing, check that:
 
 - each material claim is either supported by evidence or labeled unverified;
 - the outcome and acceptance criteria describe results rather than a prescribed design;
-- unresolved consequential questions remain visible; and
+- unresolved consequential questions remain visible under **Open Questions** or **Context**; and
 - the issue is short enough to read quickly without losing a needed constraint.
 
 Create a GitHub issue only when the requester asks to create one. Initial creation does not require a separate approval step; human review and later editing are expected. When new evidence or answers arrive, update the same ticket rather than inventing certainty retroactively.

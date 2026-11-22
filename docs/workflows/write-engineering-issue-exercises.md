@@ -1,10 +1,10 @@
 # Ticket-writing workflow exercises
 
-These are private drafting exercises, not new or rewritten GitHub issues. They test the workflow against existing WineOps evidence and show the expected level of detail.
+These are illustrative drafting exercises, not new or rewritten GitHub issues. They test the workflow against existing WineOps evidence and show the expected level of detail.
 
 ## Straightforward: run the ingestion concurrency suite
 
-**Source problem:** [#53](https://github.com/mattyplo/wineops/issues/53). `backend/test/database/reading-ingestion.integration.test.ts` contains the real PostgreSQL concurrency tests, but registers them as skipped when `WINEOPS_TEST_DATABASE_URL` is absent. The test setup rejects a non-empty target database before applying migrations.
+**Source problem:** [#53](https://github.com/mattyplo/wineops/issues/53). `backend/test/database/reading-ingestion.integration.test.ts` contains the real PostgreSQL concurrency tests, but registers them as skipped when `WINEOPS_TEST_DATABASE_URL` is absent. Before applying migrations, its safety check confirms only that `public.temperature_readings` does not exist; it does not verify that the entire database is empty.
 
 ### Draft: Validate the ingestion concurrency suite on a disposable database
 
@@ -14,8 +14,8 @@ The ingestion RPC's concurrent replay and conflict behavior has not been execute
 
 #### Context
 
-- **Evidence:** `backend/test/database/reading-ingestion.integration.test.ts` conditionally skips the suite without `WINEOPS_TEST_DATABASE_URL` and requires an empty database.
-- **Known:** The suite applies migrations and creates roles; production and shared databases are unsafe targets.
+- **Evidence:** `backend/test/database/reading-ingestion.integration.test.ts` conditionally skips the suite without `WINEOPS_TEST_DATABASE_URL` and checks only for `public.temperature_readings` before applying migrations.
+- **Known:** The suite applies migrations and creates roles; production and shared databases are unsafe targets. Its target must be independently verified as an empty, disposable database.
 - **Assumptions / unverified:** The suite will pass once a suitable database is available.
 
 #### Desired Outcome
@@ -24,14 +24,14 @@ The existing concurrency suite has recorded results from an isolated, disposable
 
 #### Acceptance Criteria
 
-- [ ] The suite runs rather than skips against an empty, disposable database.
+- [ ] The suite runs rather than skips against a verified empty, disposable database.
 - [ ] Results cover concurrent identical UUID replay and conflicting UUID reuse.
 - [ ] The command, non-secret environment requirements, pass/fail results, and deviations are recorded.
 - [ ] The disposable database is cleaned up after the run.
 
 #### Verification
 
-Run `npm run test:database` from `backend/` with `WINEOPS_TEST_DATABASE_URL` set to the isolated database, then record the result without exposing credentials.
+Verify that the isolated target database is empty and disposable, then run `npm run test:database` from `backend/` with `WINEOPS_TEST_DATABASE_URL` set to that database and record the result without exposing credentials.
 
 **Evaluation:** The evidence supplies the scope and safety boundary, so no clarification was needed. Four outcome-focused criteria were sufficient; no implementation was prescribed.
 
