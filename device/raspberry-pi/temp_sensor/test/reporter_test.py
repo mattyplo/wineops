@@ -185,6 +185,48 @@ class ReporterTests(unittest.TestCase):
         self.assertEqual(waits[:4], [1, 2, 4, 8])
         self.assertLessEqual(max(waits), reporter.MAX_BACKOFF_SECONDS)
 
+    def test_sixty_day_equivalent_for_nine_sensors(self):
+        # Accelerated capacity simulation: 9 x 17,280 five-minute slots.
+        import sqlite3
+        total = 9 * 60 * 24 * 12
+        with sqlite3.connect(self.db_path) as db:
+            db.executemany(
+                """INSERT INTO observations
+                   (reading_id,sensor_id,device_id,temperature_c,reading_timestamp)
+                   VALUES (?,?,?,?,?)""",
+                ((f"{n:08x}-0000-4000-8000-000000000000", f"28-{n % 9}",
+                  "pi01", 20.5, f"2026-01-{1 + n // 100000:02d}T{n:08d}Z")
+                 for n in range(total)),
+            )
+        self.assertEqual(self.queue.counts(), (total, 0))
+        self.assertLess(self.db_path.stat().st_size, reporter.MAX_QUEUE_BYTES)
+        # Capacity is not a TTL: the first observation remains.
+        self.assertIsNotNone(self.queue.next_pending())
+
+    def test_sampling_deadline_does_not_inherit_delivery_sleep(self):
+        class StopSampling(Exception):
+            pass
+        clock = [0.0]
+        called = []
+        class ClockStop:
+            def is_set(self):
+                return False
+            def wait(self, delay):
+                clock[0] += delay
+                return False
+        original = reporter.report_readings_once
+        def capture(_sensors, _device, _queue):
+            called.append(clock[0])
+            clock[0] += 0.3  # sensor read duration
+            if len(called) == 3:
+                raise StopSampling()
+        reporter.report_readings_once = capture
+        self.addCleanup(lambda: setattr(reporter, "report_readings_once", original))
+        with patch.object(reporter.time, "monotonic", side_effect=lambda: clock[0]):
+            with self.assertRaises(StopSampling):
+                reporter.run_sampling(["s"], "pi01", self.queue, 5, ClockStop())
+        self.assertEqual(called, [0.0, 5.0, 10.0])
+
     def test_failure_logs_do_not_include_secret(self):
         capture = io.StringIO()
         with contextlib.redirect_stdout(capture):
