@@ -55,9 +55,9 @@ REPORT_INTERVAL_SECONDS=300
 REQUEST_TIMEOUT_SECONDS=90
 ```
 
-`REPORT_INTERVAL_SECONDS` controls the delay after a reporting cycle completes
-and defaults to `300` (five minutes). It is not a fixed measurement frequency:
-actual cycle spacing also includes sensor-read and HTTP submission time.
+`REPORT_INTERVAL_SECONDS` controls a monotonic, fixed-start sampling schedule and defaults to `300` (five minutes).
+HTTP delivery happens independently and cannot delay sampling. Missed deadlines from
+slow sensor reads are logged; the reporter does not invent missed observations.
 `REQUEST_TIMEOUT_SECONDS` controls the HTTP request timeout and defaults to
 `90`. Both settings are optional, so existing configuration files continue to
 use these defaults. Invalid values cause the reporter to exit at startup with
@@ -140,10 +140,10 @@ python supabase_reporter.py
 
 The reporter will:
 
-1. Read each configured sensor
-2. Capture the temperature
-3. Send that reading to the WineOps Fastify API
-4. Wait for the next interval
+1. Read each configured sensor on a monotonic five-minute schedule
+2. Capture a UUID and UTC timestamp and commit the reading to local SQLite
+3. Independently deliver pending readings to the WineOps Fastify API
+4. Retain pending readings until Fastify confirms insert (HTTP 201) or duplicate (HTTP 200)
 
 ## Run automatically at startup
 
@@ -197,10 +197,74 @@ Example:
 
 ### API submission failures
 
-The reporter logs the device ID, sensor ID, measurement time, and error type
-for a failed submission. It does not log the ingest token, request headers, or
-response body. There is no durable queue or automatic retry: a failed reading
-is not retained for later delivery, and other sensors continue reporting.
+The reporter logs device ID, sensor ID, measurement time, retry errors, queue depth,
+permanent rejections, and recovery. It never logs tokens, request headers, or
+response bodies. A timeout or 5xx leaves the same original reading pending and
+retries with exponential backoff (1–300 seconds). API 401/403 is retryable because
+fixing credentials can restore delivery. HTTP 400, 409, and 422 are retained as
+`rejected` for future manual remediation (#58); they do not block other readings.
+Successful HTTP 201 and duplicate HTTP 200 remove a pending reading.
+
+### Durable local queue and capacity
+
+The queue is `~/.local/share/wineops/readings.sqlite3`, stored **outside** the
+repository and Python virtual environment, so routine `setup.sh --update` and
+reporter restarts preserve it. SQLite uses transactional rollback journaling and
+`synchronous=FULL` to protect committed entries against abrupt interruption.
+Delivery is limited to one observation/second; historical data is not expired.
+
+At five-minute cadence, **60 days = 17,280 readings per sensor**. A deployment
+with 9 sensors needs space for 155,520 readings. The queue has a 256 MiB
+SQLite-file ceiling and keeps at least 64 MiB of filesystem free before accepting
+new entries. Actual per-reading storage depends on SQLite indexing/page overhead;
+verify real Pi capacity before treating 60-day coverage as guaranteed. Larger
+sensor configurations may require revising the cap. Available disk space may
+also exhaust earlier, and unexpected filesystem errors can cause loss.
+**No queued entry is silently evicted.** If the disk reserve/cap is reached or
+SQLite cannot commit, a `CRITICAL observation NOT STORED` journal message includes
+the UUID and sensor ID; that newly sampled reading is *not* durable. Operators
+must free space or repair the filesystem promptly. Previously stored rows remain.
+Avoid placing the database on ephemeral `/tmp`, on the checkout being reset,
+or in a virtual environment. Back up the SQLite database using SQLite's online
+backup facility while the service runs; ordinary file copying during writes is
+not a safe backup. Restoring the database to the same location before starting
+the service preserves stable UUIDs, timestamps and identities.
+
+Inspect status (no credentials required):
+
+```bash
+journalctl -u wineops-reporter.service -n 150 --no-pager
+python3 - <<'PY'
+import sqlite3
+from pathlib import Path
+p = Path.home() / '.local/share/wineops/readings.sqlite3'
+with sqlite3.connect(p) as db:
+    print(db.execute('SELECT state, COUNT(*) FROM observations GROUP BY state').fetchall())
+    print(db.execute('SELECT MIN(reading_timestamp), MAX(reading_timestamp) FROM observations WHERE state=\'pending\'').fetchone())
+PY
+df -h ~
+ls -lh ~/.local/share/wineops/readings.sqlite3
+```
+
+### pi01 outage/recovery validation (not yet performed)
+
+1. On **pi01 only**, update to the PR branch using a normal Git checkout, then
+   run `./device/raspberry-pi/setup.sh --update`. Do **not** migrate pi02/pi03.
+2. Record IDs/timestamps and counts from the SQLite query above. Temporarily
+   block the Pi's outbound access to the configured Fastify host (do not change
+   the real ingest token). Observe several five-minute samples accumulate.
+3. Run `sudo systemctl restart wineops-reporter.service`; verify those same
+   IDs remain queued. Reboot the Pi, then confirm queue persistence again.
+4. Restore access. Observe `Recovered` log messages and falling pending count;
+   cross-check IDs/timestamps in Supabase/Fastify, including no duplicate rows.
+5. Test an ambiguous success response in a staging API by committing a reading
+   but withholding the response, then ensuring the retry receives HTTP 200.
+6. Use an accelerated synthetic 60-day equivalent queue in a test environment
+   to check capacity, sustained sampling and drain rate; do not fill the live
+   Pi's SD card. Record results under #51 and validate actual disk headroom.
+
+Run automation locally from `device/raspberry-pi`:
+`python3 -m unittest temp_sensor/test/reporter_test.py`.
 
 ### Sensor not detected
 
