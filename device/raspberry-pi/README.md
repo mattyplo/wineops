@@ -85,6 +85,15 @@ They are optional and are preserved unchanged by normal updates; an existing
 configuration that omits them continues to use the new defaults. The reporter
 rejects zero, negative, and non-integer values at startup.
 
+The reporter needs no new configuration for durable delivery. It stores its
+SQLite outbox in `~/.local/state/wineops/readings.sqlite3` for the normal Pi
+user. The queue reserves 34,560 pending observations per configured sensor
+(120 days at the five-minute default); it never expires or silently evicts
+pending readings. Ensure the Pi has sufficient free disk space. Queue depth,
+backoff retries, permanent API rejections, and capacity alerts are written to
+the `wineops-reporter` journal. See the sensor README for recovery and rebuild
+handling.
+
 Updates reject empty values, duplicate assignments, and unsupported entries
 instead of appending a conflicting setting. Use `--reconfigure` to replace an
 invalid configuration deliberately.
@@ -182,6 +191,13 @@ journalctl -u wineops-reporter.service -b
 sudo systemctl restart wineops-reporter.service
 ```
 
+To inspect durable-delivery health after an outage or update:
+
+```bash
+journalctl -u wineops-reporter.service -b | grep -E 'Queue status|submission failed|CRITICAL'
+du -h ~/.local/state/wineops/readings.sqlite3*
+```
+
 The service is enabled at boot and automatically restarts after a reporter
 failure. After installation, reboot the Pi and check its status to verify the
 complete boot flow:
@@ -230,3 +246,24 @@ into logs or support messages.
 
 More information about the reporter and sensor payload is in
 [`temp_sensor/README.md`](temp_sensor/README.md).
+
+## pi01 validation for durable delivery
+
+Physical Pi validation has not been performed by this change. Before enabling
+other Pis, validate pi01 with the Fastify API and database migration already
+deployed:
+
+```bash
+./device/raspberry-pi/update.sh
+systemctl status wineops-reporter.service
+journalctl -u wineops-reporter.service -b -f
+```
+
+Temporarily make the API unreachable (without changing the sensor wiring) for
+at least two reporting intervals, then restore it. Confirm that the journal
+shows pending readings and bounded retry delays while new samples continue;
+after recovery, confirm the depth returns to zero. Compare the original
+timestamps and UUIDs in Fastify/database logs, verify no duplicate database
+rows, reboot pi01 while readings remain queued, and confirm the queue resumes
+after boot. Restore normal connectivity and leave pi01 under observation before
+rolling this change to pi02 or pi03.
