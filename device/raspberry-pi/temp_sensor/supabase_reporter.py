@@ -5,6 +5,7 @@ import sqlite3
 import threading
 import time
 import uuid
+from contextlib import contextmanager
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -105,11 +106,16 @@ class DurableQueue:
         self.path.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
         self._initialize()
 
+    @contextmanager
     def connect(self):
         connection = sqlite3.connect(str(self.path), timeout=10)
-        connection.execute("PRAGMA busy_timeout=10000")
-        connection.execute("PRAGMA synchronous=FULL")
-        return connection
+        try:
+            connection.execute("PRAGMA busy_timeout=10000")
+            connection.execute("PRAGMA synchronous=FULL")
+            with connection:
+                yield connection
+        finally:
+            connection.close()
 
     def _initialize(self):
         with self.connect() as db:
