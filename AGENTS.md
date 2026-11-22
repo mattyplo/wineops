@@ -22,6 +22,8 @@ The implemented data path is: Raspberry Pi → Fastify API → Supabase → Fast
 
 Read the scoped `AGENTS.md` before changing a component. Root documentation in [README.md](README.md) describes the current system and local development; database and Pi setup details live in their respective READMEs.
 
+When framing a new engineering issue, use the shared [ticket-writing workflow](docs/workflows/write-engineering-issue.md) and its [canonical template](docs/templates/engineering-issue.md). Do not duplicate that guidance in tool-specific instructions.
+
 Run verification from the changed component directory using the commands documented in its scoped file. There is no repository-wide package script.
 
 Keep these files brief and update them only when a convention or constraint is established in the repository.
