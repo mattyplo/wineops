@@ -1,0 +1,22 @@
+name: Pi reporter reliability tests
+on:
+  pull_request:
+    paths:
+      - 'device/raspberry-pi/**'
+      - '.github/workflows/pi-reporter-tests.yml'
+  workflow_dispatch:
+
+jobs:
+  reporter:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Reporter unit tests (hardware stubbed)
+        working-directory: device/raspberry-pi
+        run: python3 -m unittest temp_sensor/test/reporter_test.py -v
+      - name: Setup/update shell regression tests
+        working-directory: device/raspberry-pi
+        run: bash test/update_test.sh

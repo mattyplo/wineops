@@ -77,9 +77,9 @@ REPORT_INTERVAL_SECONDS='300'
 REQUEST_TIMEOUT_SECONDS='90'
 ```
 
-`REPORT_INTERVAL_SECONDS` sets the delay after a reporting cycle completes
-(default: 300 seconds); it is not a fixed measurement frequency, because the
-cycle also includes sensor-read and HTTP submission time.
+`REPORT_INTERVAL_SECONDS` sets the fixed-start, monotonic sampling interval
+(default: 300 seconds). HTTP retries and backlog replay run independently of
+sampling. Missed sensor-read deadlines are logged rather than synthesized.
 `REQUEST_TIMEOUT_SECONDS` sets the HTTP request timeout (default: 90 seconds).
 They are optional and are preserved unchanged by normal updates; an existing
 configuration that omits them continues to use the new defaults. The reporter
@@ -230,3 +230,9 @@ into logs or support messages.
 
 More information about the reporter and sensor payload is in
 [`temp_sensor/README.md`](temp_sensor/README.md).
+
+The reporter's persistent queue and backup/recovery procedure are documented
+in [temp_sensor/README.md](temp_sensor/README.md). The queue lives outside the
+checkout and virtualenv, so setup/update must never delete it. Before installing
+on pi01, confirm at least 64 MiB available disk space plus the anticipated
+backlog (60 days = 17,280 rows per sensor); a 256 MiB database-size cap applies.

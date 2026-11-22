@@ -6,7 +6,7 @@ Use `./setup.sh` as the supported installation, update, and reconfiguration path
 
 The reporter loads `WINEOPS_API_URL`, `WINEOPS_INGEST_TOKEN`, stable `DEVICE_ID`, comma-separated `SENSORS`, and optional timing settings from `~/.supabase_env`. `REPORT_INTERVAL_SECONDS` defaults to `300`; `REQUEST_TIMEOUT_SECONDS` defaults to `90`. It sends each client-UUID reading independently to Fastify while preserving each UTC `reading_timestamp`. DS18B20 hardware IDs (for example, `28-...`) are the configured identities.
 
-The current implementation prints errors for a sensor or HTTP response and continues its loop. It has no persistent offline queue, retry/backoff, or deduplication behavior; do not claim those guarantees without implementing them.
+The reporter stores observed readings in SQLite at ~/.local/share/wineops/readings.sqlite3 before delivery. A separate worker replays them through Fastify at a bounded rate with backoff; stable UUIDs permit idempotent replays. HTTP 400/409/422 are retained as rejected for #58, while auth/network failures remain pending. Do not delete this database during setup, updates, or rebuilds. Validate physical behavior on pi01 before migrating other Pis.
 
 `systemd/wineops-reporter.service` is a template rendered by `setup.sh`; its placeholders must not be installed unchanged. The installed unit waits for network-online and restarts the process after 30 seconds.
 
